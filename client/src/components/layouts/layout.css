@@ -1,0 +1,90 @@
+/* General Styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: Arial, sans-serif;
+}
+
+/* Sidebar Styling */
+.sidebar {
+  position: fixed;
+  top: 25%; /* Position the sidebar vertically center at 50% height */
+  left: 0;
+  width: 15%; /* 15% of the viewport width */
+  height: 50%; /* 50% of the viewport height */
+  background-color: #343a40; /* Dark background color */
+  color: white;
+  transform: translateX(-100%); /* Initially hidden to the left */
+  transition: transform 0.3s ease-in-out;
+  padding-top: 20px;
+  z-index: 1000;
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.2); /* Subtle shadow for depth */
+}
+
+.sidebar.open {
+  transform: translateX(0); /* Slide in from the left */
+}
+
+.sidebar ul {
+  list-style-type: none;
+  padding: 0;
+}
+
+.sidebar li {
+  padding: 15px 10px;
+}
+
+.sidebar li a {
+  color: #adb5bd; /* Light text color */
+  text-decoration: none;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  transition: color 0.3s, background-color 0.3s;
+}
+
+.sidebar li a:hover {
+  background-color: #495057; /* Dark hover effect */
+  color: white;
+  border-radius: 4px;
+}
+
+.icon {
+  margin-right: 10px; /* Space for icon next to text */
+  font-size: 1.2rem;
+}
+
+/* Toggle Button */
+.toggle-btn {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  background-color: #4a90e2;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  font-size: 1rem;
+  cursor: pointer;
+  border-radius: 5px;
+  z-index: 1100;
+  transition: background-color 0.3s;
+  box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.toggle-btn:hover {
+  background-color: #357ab8;
+}
+
+/* Main Content */
+.content {
+  padding: 20px;
+  transition: margin-left 0.3s ease;
+}
+
+.content.shifted {
+  margin-left: 15%; /* Shifts content over by the width of the sidebar */
+}

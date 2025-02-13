@@ -1,0 +1,77 @@
+/* General section styling */
+.admin-users-section {
+    padding: 50px 0;
+    background-color: #f9f9f9;
+  }
+  
+  .admin-users-section h1 {
+    text-align: center;
+    font-size: 2.5rem;
+    margin-bottom: 30px;
+    color: #333;
+  }
+  
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 20px;
+  }
+  
+  /* Table styling */
+  .admin-users table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 50px;
+    background-color: #fff;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  }
+  
+  .admin-users th, .admin-users td {
+    padding: 15px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+  }
+  
+  .admin-users th {
+    background-color: #333;
+    color: #fff;
+    text-transform: uppercase;
+    font-weight: bold;
+  }
+  
+  .admin-users td {
+    font-size: 1rem;
+    color: #555;
+  }
+  
+  .admin-users tr:hover {
+    background-color: #f1f1f1;
+  }
+  
+  /* Edit & Delete button styling */
+  .admin-users a,
+  .admin-users button {
+    text-decoration: none;
+    color: #fff;
+    background-color: #007bff;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+  
+  .admin-users a:hover,
+  .admin-users button:hover {
+    background-color: #0056b3;
+  }
+  
+  /* Delete button specific styling */
+  .admin-users button {
+    background-color: #dc3545;
+  }
+  
+  .admin-users button:hover {
+    background-color: #c82333;
+  }
+  

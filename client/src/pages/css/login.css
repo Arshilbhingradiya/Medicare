@@ -1,0 +1,98 @@
+/* signup.css */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Arial', sans-serif;
+  }
+  
+  body, html {
+    height: 100%;
+    background-color: #f4f7fc;
+  }
+  
+  .login-section {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+  }
+  
+  .login-main {
+    background-color: #fff;
+    padding: 2rem;
+    border-radius: 10px;
+    box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.1);
+    width: 350px;
+  }
+  
+  .container {
+    width: 100%;
+  }
+  
+  .htmlForm-heading {
+    text-align: center;
+    margin-bottom: 1rem;
+    color: #333;
+    font-size: 1.8rem;
+  }
+  
+  .htmlForm {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .htmlForm-group {
+    margin-bottom: 1.2rem;
+  }
+  
+  .htmlForm-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    color: #333;
+  }
+  
+  .htmlForm-group input,
+  .htmlForm-group select {
+    width: 100%;
+    padding: 0.8rem;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    font-size: 1rem;
+    outline: none;
+  }
+  
+  .htmlForm-group input:focus,
+  .htmlForm-group select:focus {
+    border-color: #007bff;
+  }
+  
+  .htmlForm-submit {
+    margin-top: 1.5rem;
+  }
+  
+  .submit-btn {
+    width: 100%;
+    padding: 0.8rem;
+    background-color: #007bff;
+    border: none;
+    color: white;
+    font-size: 1rem;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+  
+  .submit-btn:hover {
+    background-color: #0056b3;
+  }
+  
+  @media (max-width: 768px) {
+    .login-main {
+      width: 90%;
+      padding: 1.5rem;
+    }
+  }
+  

@@ -1,0 +1,202 @@
+/* Profile container */
+.profile-container {
+    max-width: 900px;
+    margin: 0 auto;
+    background-color: #fff;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+  }
+  
+  /* Profile cover image */
+  .profile-cover {
+    position: relative;
+    height: 200px;
+    margin-bottom: -100px;
+  }
+  
+  .cover-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 10px 10px 0 0;
+  }
+  
+  /* Profile header */
+  .profile-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 20px;
+    position: relative;
+  }
+  
+  .profile-image {
+    width: 150px;
+    height: 150px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 5px solid white;
+  }
+  
+  .profile-details {
+    margin-left: 20px;
+  }
+  
+  /* Profile name and details */
+  .profile-name {
+    font-size: 28px;
+    font-weight: bold;
+  }
+  
+  .profile-title {
+    color: #666;
+    font-size: 18px;
+  }
+  
+  .profile-location {
+    color: #999;
+    font-size: 16px;
+    margin-bottom: 10px;
+  }
+  
+  /* Profile social media links */
+  .profile-socials a {
+    color: #333;
+    font-size: 24px;
+    margin-right: 10px;
+    transition: color 0.3s;
+  }
+  
+  .profile-socials a:hover {
+    color: #007bff;
+  }
+  
+  /* Tabs for different sections */
+  .profile-tabs {
+    display: flex;
+    justify-content: space-around;
+    margin-top: 20px;
+    border-bottom: 2px solid #eee;
+  }
+  
+  .tab-btn {
+    padding: 10px;
+    cursor: pointer;
+    background-color: #f9f9f9;
+    border: none;
+    font-size: 16px;
+    transition: background-color 0.3s;
+  }
+  
+  .tab-btn:hover {
+    background-color: #007bff;
+    color: white;
+  }
+  
+  /* Profile stats */
+  .profile-stats {
+    display: flex;
+    justify-content: space-around;
+    padding: 20px 0;
+    border-top: 1px solid #eee;
+  }
+  
+  .stat-item {
+    text-align: center;
+    cursor: pointer;
+  }
+  
+  .stat-item i {
+    font-size: 30px;
+    margin-bottom: 5px;
+    color: #666;
+  }
+  
+  .stat-item h4 {
+    font-size: 18px;
+    color: #777;
+  }
+  
+  .stat-item p {
+    font-size: 22px;
+    font-weight: bold;
+  }
+  
+  /* Edit profile button */
+  .profile-footer {
+    text-align: center;
+    margin-top: 20px;
+  }
+  
+  .edit-profile-btn {
+    background-color: #007bff;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background-color 0.3s;
+  }
+  
+  .edit-profile-btn:hover {
+    background-color: #0056b3;
+  }
+  
+  /* Modal styling */
+  .modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  
+  .modal-content {
+    background-color: white;
+    padding: 30px;
+    border-radius: 10px;
+    width: 400px;
+  }
+  
+  .modal-content h2 {
+    margin-bottom: 20px;
+  }
+  
+  .modal-content input,
+  .modal-content textarea {
+    width: 100%;
+    margin-bottom: 15px;
+    padding: 10px;
+    border-radius: 5px;
+    border: 1px solid #ddd;
+  }
+  
+  .save-btn {
+    background-color: #007bff;
+    color: white;
+    padding: 10px;
+    border: none;
+    border-radius: 5px;
+    width: 100%;
+    margin-bottom: 10px;
+  }
+  
+  .close-btn {
+    background-color: #ccc;
+    color: black;
+    padding: 10px;
+    border: none;
+    border-radius: 5px;
+    width: 100%;
+    cursor: pointer;
+  }
+  
+  .close-btn:hover {
+    background-color: #999;
+  }
+  

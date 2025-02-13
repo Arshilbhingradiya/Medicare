@@ -1,0 +1,83 @@
+/* contact.css */
+
+/* Apply a dark background to the entire body */
+section {
+  background-color: #9771cb;
+  color: #f3f4f6; /* Tailwind gray-100 */
+  margin: 0;
+  font-family: "Arial", sans-serif;
+}
+
+/* Custom scroll bar for dark mode */
+body::-webkit-scrollbar {
+  width: 10px;
+}
+
+body::-webkit-scrollbar-thumb {
+  background: #6b7280; /* Tailwind color for gray-500 */
+  border-radius: 5px;
+}
+
+body::-webkit-scrollbar-track {
+  background: #374151; /* Tailwind color for gray-700 */
+}
+
+.section-contact {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 50px 0;
+}
+
+.contact-form {
+  max-width: 600px;
+  width: 100%;
+  background-color: #1f2937; /* Tailwind gray-800 */
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);
+}
+
+.contact-form h1 {
+  font-size: 24px;
+  color: #f3f4f6; /* Tailwind gray-100 */
+}
+
+.contact-form input,
+.contact-form textarea {
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 15px;
+  border: none;
+  background-color: #374151; 
+  color: #f3f4f6;
+  border-radius: 8px;
+  transition: background-color 0.3s ease;
+}
+
+.contact-form input:focus,
+.contact-form textarea:focus {
+  background-color: #4b5563; /* Tailwind gray-600 */
+  outline: none;
+  color: white;
+}
+
+.btn-primary {
+  background-color: #3b82f6; /* Tailwind blue-500 */
+  border-color: #3b82f6;
+}
+
+.btn-primary:hover {
+  background-color: #2563eb; /* Tailwind blue-600 */
+  border-color: #2563eb;
+}
+
+/* Responsive adjustments */
+@media screen and (max-width: 768px) {
+  .contact-form {
+    padding: 15px;
+  }
+}
+.block {
+  color: white;
+}
