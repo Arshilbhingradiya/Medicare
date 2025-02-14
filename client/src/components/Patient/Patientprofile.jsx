@@ -51,9 +51,25 @@ const PatientProfile = () => {
     setProfile({ ...profile, [e.target.name]: e.target.value });
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     localStorage.setItem(`patientProfile_${user?.id}`, JSON.stringify(profile));
     alert("Profile Saved Successfully!");
+    try {
+      const response = await fetch(
+        "http://localhost:3000/api/patientform/patientprofile",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(profile),
+        }
+      );
+      const res_data = await response.json();
+      console.log("res from server", res_data);
+    } catch (error) {
+      console.log("patient profile", error);
+    }
   };
 
   const handleAvatarChange = (event) => {
@@ -68,116 +84,118 @@ const PatientProfile = () => {
   };
 
   return (
-    <Container>
-      <ProfileContainer>
-        <Typography variant="h5" gutterBottom>
-          Patient Profile
-        </Typography>
+    <>
+      <Container>
+        <ProfileContainer>
+          <Typography variant="h5" gutterBottom>
+            Patient Profile
+          </Typography>
 
-        {/* Profile Picture */}
-        <div style={{ textAlign: "center", marginBottom: 16 }}>
-          <Avatar
-            src={profile.avatar || "/default-avatar.png"}
-            sx={{ width: 100, height: 100, margin: "auto" }}
-          />
-          <label htmlFor="avatar-upload">
-            <AvatarInput
-              accept="image/*"
-              id="avatar-upload"
-              type="file"
-              onChange={handleAvatarChange}
+          {/* Profile Picture */}
+          <div style={{ textAlign: "center", marginBottom: 16 }}>
+            <Avatar
+              src={profile.avatar || "/default-avatar.png"}
+              sx={{ width: 100, height: 100, margin: "auto" }}
             />
-            <IconButton component="span">
-              <UploadFile />
-            </IconButton>
-          </label>
-        </div>
+            <label htmlFor="avatar-upload">
+              <AvatarInput
+                accept="image/*"
+                id="avatar-upload"
+                type="file"
+                onChange={handleAvatarChange}
+              />
+              <IconButton component="span">
+                <UploadFile />
+              </IconButton>
+            </label>
+          </div>
 
-        {/* Personal Details Form */}
-        <TextField
-          fullWidth
-          label="Full Name"
-          name="name"
-          value={profile.name}
-          onChange={handleChange}
-          margin="normal"
-          required
-        />
-        <TextField
-          fullWidth
-          label="Age"
-          name="age"
-          value={profile.age}
-          onChange={handleChange}
-          margin="normal"
-          type="number"
-        />
-        <TextField
-          fullWidth
-          select
-          label="Gender"
-          name="gender"
-          value={profile.gender}
-          onChange={handleChange}
-          margin="normal"
-        >
-          <MenuItem value="Male">Male</MenuItem>
-          <MenuItem value="Female">Female</MenuItem>
-          <MenuItem value="Other">Other</MenuItem>
-        </TextField>
-        <TextField
-          fullWidth
-          label="Email"
-          name="email"
-          value={profile.email}
-          onChange={handleChange}
-          margin="normal"
-          type="email"
-          required
-        />
-        <TextField
-          fullWidth
-          label="Phone Number"
-          name="phone"
-          value={profile.phone}
-          onChange={handleChange}
-          margin="normal"
-          type="tel"
-        />
-        <TextField
-          fullWidth
-          label="Address"
-          name="address"
-          value={profile.address}
-          onChange={handleChange}
-          margin="normal"
-          multiline
-          rows={2}
-        />
-        <TextField
-          fullWidth
-          label="Medical History"
-          name="medicalHistory"
-          value={profile.medicalHistory}
-          onChange={handleChange}
-          margin="normal"
-          multiline
-          rows={3}
-        />
+          {/* Personal Details Form */}
+          <TextField
+            fullWidth
+            label="Full Name"
+            name="name"
+            value={profile.name}
+            onChange={handleChange}
+            margin="normal"
+            required
+          />
+          <TextField
+            fullWidth
+            label="Age"
+            name="age"
+            value={profile.age}
+            onChange={handleChange}
+            margin="normal"
+            type="number"
+          />
+          <TextField
+            fullWidth
+            select
+            label="Gender"
+            name="gender"
+            value={profile.gender}
+            onChange={handleChange}
+            margin="normal"
+          >
+            <MenuItem value="Male">Male</MenuItem>
+            <MenuItem value="Female">Female</MenuItem>
+            <MenuItem value="Other">Other</MenuItem>
+          </TextField>
+          <TextField
+            fullWidth
+            label="Email"
+            name="email"
+            value={profile.email}
+            onChange={handleChange}
+            margin="normal"
+            type="email"
+            required
+          />
+          <TextField
+            fullWidth
+            label="Phone Number"
+            name="phone"
+            value={profile.phone}
+            onChange={handleChange}
+            margin="normal"
+            type="tel"
+          />
+          <TextField
+            fullWidth
+            label="Address"
+            name="address"
+            value={profile.address}
+            onChange={handleChange}
+            margin="normal"
+            multiline
+            rows={2}
+          />
+          <TextField
+            fullWidth
+            label="Medical History"
+            name="medicalHistory"
+            value={profile.medicalHistory}
+            onChange={handleChange}
+            margin="normal"
+            multiline
+            rows={3}
+          />
 
-        {/* Save Button */}
-        <Button
-          variant="contained"
-          color="primary"
-          fullWidth
-          startIcon={<Save />}
-          onClick={handleSave}
-          sx={{ mt: 2 }}
-        >
-          Save Profile
-        </Button>
-      </ProfileContainer>
-    </Container>
+          {/* Save Button */}
+          <Button
+            variant="contained"
+            color="primary"
+            fullWidth
+            startIcon={<Save />}
+            onClick={handleSave}
+            sx={{ mt: 2 }}
+          >
+            Save Profile
+          </Button>
+        </ProfileContainer>
+      </Container>
+    </>
   );
 };
 

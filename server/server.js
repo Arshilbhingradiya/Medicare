@@ -6,7 +6,7 @@ const authrouter = require("./router/auth-router");
 const contactrouter = require("./router/contact-router");
 const servicerouter = require("./router/service-router");
 const adminrouter = require("./router/admin-router");
-const userrouter = require("./router/userinfo-router.js");
+const patientrouter = require("./router/patient-router.js");
 
 const connectdb = require("./db");
 
@@ -30,9 +30,7 @@ app.use("/api/data", servicerouter);
 // admin panel
 app.use("/api/admin", adminrouter);
 
-// user panel
-
-app.use("/api/user", userrouter);
+app.use("/api/patientform", patientrouter);
 
 // app.use("/api/form", router);
 // we can use this method also but mvc structure is not prefer
