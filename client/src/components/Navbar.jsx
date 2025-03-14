@@ -166,6 +166,8 @@ const Navbar = () => {
     setAnchorEl(null);
     if (user?.role === "Patient") {
       navigate("/patientappoinment");
+    } else if (user?.role === "Doctor") {
+      navigate("/doctorappoinment");
     }
   };
   const handleprofile = () => {
@@ -176,7 +178,11 @@ const Navbar = () => {
       navigate("/patientprofile");
     }
   };
-
+  const handlepatientrecords = () => {
+    setAnchorEl(null);
+    navigate("/patientrecords");
+  };
+  // const handledoctorsettings = () => {};
   const handleThemeToggle = () => {
     setDarkMode(!darkMode);
   };
@@ -192,6 +198,17 @@ const Navbar = () => {
   const handleLogout = () => {
     navigate("/logout");
   };
+  const handlesearch = () => {
+    navigate("/doctorsearch");
+  };
+  const handleAppointmentCTA = () => {
+    if (user.role == "patient") {
+      navigate("/patientappoinment");
+    }
+  };
+  const handlemedicare = () => {
+    navigate("/");
+  };
 
   return (
     <ThemeProvider theme={theme}>
@@ -199,7 +216,9 @@ const Navbar = () => {
         <Toolbar>
           {/* Logo */}
           <Typography
+            type="button"
             variant="h6"
+            onClick={handlemedicare}
             sx={{ flexGrow: 1, marginLeft: "50px", color: "#FFF" }}
           >
             MediCare
@@ -237,13 +256,13 @@ const Navbar = () => {
             </Link>
           </Button>
           <Button sx={{ color: "#FFF" }}>
-            <Link to="/contact" className="nav-link text-white">
-              Contact
+            <Link to="/about" className="nav-link text-white">
+              About
             </Link>
           </Button>
           <Button sx={{ color: "#FFF" }}>
-            <Link to="/about" className="nav-link text-white">
-              About
+            <Link to="/contact" className="nav-link text-white">
+              Contact
             </Link>
           </Button>
 
@@ -255,6 +274,7 @@ const Navbar = () => {
           {/* Book Appointment CTA */}
           <Button
             variant="contained"
+            onClick={handleAppointmentCTA}
             sx={{
               bgcolor: theme.palette.secondary.main,
               color: "#FFF",
@@ -271,9 +291,9 @@ const Navbar = () => {
           </IconButton>
 
           {/* Theme Toggle */}
-          <IconButton sx={{ color: "#FFF" }} onClick={handleThemeToggle}>
+          {/* <IconButton sx={{ color: "#FFF" }} onClick={handleThemeToggle}>
             {darkMode ? <Brightness7 /> : <Brightness4 />}
-          </IconButton>
+          </IconButton> */}
 
           {/* Auth Section */}
           {isLoggedIn ? (
@@ -284,7 +304,7 @@ const Navbar = () => {
               >
                 <AccountCircle />
               </IconButton>
-              <Menu
+              {/* <Menu
                 anchorEl={anchorEl}
                 open={Boolean(anchorEl)}
                 onClose={handleprofile}
@@ -292,6 +312,31 @@ const Navbar = () => {
                 <MenuItem onClick={handleprofile}>Profile</MenuItem>
                 <MenuItem onClick={handleappoinment}>Appointments</MenuItem>
                 <MenuItem onClick={handledashboard}>Dashboard</MenuItem>
+                <MenuItem onClick={handleLogout}>Logout</MenuItem>
+              </Menu> */}
+              <Menu
+                anchorEl={anchorEl}
+                open={Boolean(anchorEl)}
+                onClose={handleprofile}
+              >
+                <MenuItem onClick={handleprofile}>Profile</MenuItem>
+                {user?.role === "Doctor" && (
+                  <>
+                    <MenuItem onClick={handledashboard}>Dashboard</MenuItem>
+                    <MenuItem onClick={handleappoinment}>Appoinment</MenuItem>
+                    <MenuItem onClick={handlepatientrecords}>
+                      Patient-records
+                    </MenuItem>
+                    {/* <MenuItem onClick={handledoctorsetting}>Settings</MenuItem> */}
+                  </>
+                )}
+                {user?.role === "Patient" && (
+                  <>
+                    <MenuItem onClick={handleappoinment}>Appointments</MenuItem>
+                    <MenuItem onClick={handledashboard}>Dahboard</MenuItem>
+                    <MenuItem onClick={handlesearch}>Doctor search</MenuItem>
+                  </>
+                )}
                 <MenuItem onClick={handleLogout}>Logout</MenuItem>
               </Menu>
             </>

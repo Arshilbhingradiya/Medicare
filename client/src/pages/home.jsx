@@ -1,12 +1,20 @@
-import { Box, Typography, Button, Grid, Paper, Avatar } from "@mui/material";
+import {
+  Box,
+  Typography,
+  Button,
+  Container,
+  Grid,
+  Paper,
+  Avatar,
+} from "@mui/material";
 import { CalendarToday, LocalHospital, People } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
-
+import { Link } from "react-router-dom";
 const Home = () => {
   const navigate = useNavigate();
 
   const handleBookAppointment = () => {
-    navigate("/book-appointment");
+    navigate("/patientappoinment");
   };
 
   return (
@@ -17,15 +25,16 @@ const Home = () => {
       <Box
         sx={{
           width: "100vw",
-          minHeight: "100vh",
+          minHeight: "80vh",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
           textAlign: "center",
-          backgroundImage: "url(/medical-banner.jpg)",
+          // backgroundImage: "url(/public/img/home.jpeg)", // New High-Quality Image
           backgroundSize: "cover",
           backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
           color: "#fff",
           position: "relative",
           "&::before": {
@@ -34,8 +43,8 @@ const Home = () => {
             top: 0,
             left: 0,
             width: "100%",
-            height: "100%",
-            backgroundColor: "rgba(0, 0, 0, 0.5)", // Overlay for better visibility
+            height: "90%",
+            backgroundColor: "rgba(57, 50, 50, 0.4)", // Slightly lighter overlay for a clearer image
           },
         }}
       >
@@ -76,13 +85,13 @@ const Home = () => {
             },
             {
               icon: <CalendarToday fontSize="large" color="primary" />,
-              title: "Online Consultation",
-              desc: "Consult with doctors online.",
+              title: "Online Booking",
+              desc: "Book Appoinment online.",
             },
             {
               icon: <People fontSize="large" color="primary" />,
-              title: "Emergency Care",
-              desc: "Immediate medical attention.",
+              title: "Get Reminder",
+              desc: "Get reminder via sms/email.",
             },
           ].map((service, index) => (
             <Grid item xs={12} sm={6} md={4} key={index}>
@@ -121,17 +130,17 @@ const Home = () => {
           {[
             {
               img: "/john-doe.jpg",
-              name: "John Doe",
+              name: "Arshil patel",
               review: "The doctors here are amazing!",
             },
             {
               img: "/jane-smith.jpg",
-              name: "Jane Smith",
+              name: "Jay Patel",
               review: "The online consultation is a lifesaver!",
             },
             {
               img: "/alice-johnson.jpg",
-              name: "Alice Johnson",
+              name: "Harshad Patel",
               review: "Highly recommended for emergency care.",
             },
           ].map((testimonial, index) => (
@@ -190,20 +199,64 @@ const Home = () => {
         </Grid>
       </Box>
       {/* Footer */}
-      <Box
-        sx={{
-          width: "100%",
-          textAlign: "center",
-          py: 4,
-          mt: 4,
-          backgroundColor: "#333",
-          color: "#fff",
-        }}
-      >
-        <Typography variant="body1">
-          &copy; {new Date().getFullYear()} Doctor Appointment System. All
-          rights reserved.
-        </Typography>
+      <Box sx={{ bgcolor: "#0D47A1", color: "white", py: 4, mt: 8 }}>
+        <Container maxWidth="lg">
+          <Grid container spacing={4} justifyContent="space-between">
+            <Grid item xs={12} md={4}>
+              <Typography variant="h6" gutterBottom>
+                MediCare
+              </Typography>
+              <Typography variant="body2">
+                Your trusted healthcare partner, providing seamless medical
+                appointments.
+              </Typography>
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <Typography variant="h6" gutterBottom>
+                Quick Links
+              </Typography>
+              <Typography variant="body2">
+                <Link to="/" style={{ color: "white", textDecoration: "none" }}>
+                  Home
+                </Link>
+              </Typography>
+              <Typography variant="body2">
+                <Link
+                  to="/find"
+                  style={{ color: "white", textDecoration: "none" }}
+                >
+                  Find Doctors
+                </Link>
+              </Typography>
+              <Typography variant="body2">
+                <Link
+                  to="/about"
+                  style={{ color: "white", textDecoration: "none" }}
+                >
+                  About Us
+                </Link>
+              </Typography>
+              <Typography variant="body2">
+                <Link
+                  to="/contact"
+                  style={{ color: "white", textDecoration: "none" }}
+                >
+                  Contact
+                </Link>
+              </Typography>
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <Typography variant="h6" gutterBottom>
+                Contact Us
+              </Typography>
+              <Typography variant="body2">
+                📍 123 Health St, New York, NY
+              </Typography>
+              <Typography variant="body2">📞 +1 800 123 4567</Typography>
+              <Typography variant="body2">✉ support@medicare.com</Typography>
+            </Grid>
+          </Grid>
+        </Container>
       </Box>
     </Box>
   );

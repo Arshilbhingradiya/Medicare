@@ -1,154 +1,220 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Container,
-  Typography,
-  Card,
-  CardContent,
   TextField,
   Button,
+  Typography,
   MenuItem,
+  Select,
+  FormControl,
+  InputLabel,
   Grid,
-  RadioGroup,
-  FormControlLabel,
-  Radio,
-  InputAdornment,
+  Paper,
 } from "@mui/material";
-import { DatePicker, LocalizationProvider } from "@mui/x-date-pickers";
-import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
-import AccessTimeIcon from "@mui/icons-material/AccessTime";
-import CloudUploadIcon from "@mui/icons-material/CloudUpload";
-import dayjs from "dayjs";
+import { format } from "date-fns";
 
-const Patientappoinment = () => {
-  const [selectedDate, setSelectedDate] = useState(dayjs());
+// Dummy Data for Doctors
+const doctors = [
+  {
+    id: 1,
+    name: "Dr. John Doe",
+    specialization: "Cardiologist",
+    city: "Delhi",
+  },
+  { id: 2, name: "Dr. Jane Smith", specialization: "Dentist", city: "Mumbai" },
+  {
+    id: 3,
+    name: "Dr. Alex Brown",
+    specialization: "Orthopedic",
+    city: "Delhi",
+  },
+  {
+    id: 4,
+    name: "Dr. Lisa Green",
+    specialization: "Dermatologist",
+    city: "Bangalore",
+  },
+];
+
+// Max patients per time slot
+const slotsPerHour = 8;
+
+const PatientAppointment = () => {
+  const [filters, setFilters] = useState({
+    city: "",
+    specialization: "",
+    name: "",
+  });
+  const [filteredDoctors, setFilteredDoctors] = useState(doctors);
+  const [selectedDoctor, setSelectedDoctor] = useState("");
+  const [selectedDate, setSelectedDate] = useState("");
   const [selectedTime, setSelectedTime] = useState("");
-  const [consultationType, setConsultationType] = useState("in-person");
-  const [file, setFile] = useState(null);
+  const [availableSlots, setAvailableSlots] = useState(slotsPerHour);
 
-  const availableTimeSlots = [
-    "10:00 AM",
-    "11:30 AM",
-    "2:00 PM",
-    "3:30 PM",
-    "5:00 PM",
-  ];
+  // Update filtered doctor list based on selected filters
+  useEffect(() => {
+    const filtered = doctors.filter(
+      (doc) =>
+        (filters.city ? doc.city === filters.city : true) &&
+        (filters.specialization
+          ? doc.specialization === filters.specialization
+          : true) &&
+        (filters.name
+          ? doc.name.toLowerCase().includes(filters.name.toLowerCase())
+          : true)
+    );
+    setFilteredDoctors(filtered);
+  }, [filters]);
 
-  const handleFileUpload = (event) => {
-    setFile(event.target.files[0]);
+  // Handle changes in filter inputs
+  const handleFilterChange = (e) => {
+    setFilters({ ...filters, [e.target.name]: e.target.value });
   };
 
-  const handleBooking = () => {
+  // Handle Doctor Selection
+  const handleDoctorChange = (event) => {
+    setSelectedDoctor(event.target.value);
+  };
+
+  // Handle Date Selection
+  const handleDateChange = (event) => {
+    setSelectedDate(event.target.value);
+  };
+
+  // Handle Time Selection & Check Availability
+  const handleTimeChange = (event) => {
+    const time = event.target.value;
+    setSelectedTime(time);
+
+    // Simulate real-time slot calculation (randomized for now)
+    const remainingSlots = Math.floor(Math.random() * (slotsPerHour + 1));
+    setAvailableSlots(remainingSlots);
+  };
+
+  // Handle Appointment Booking
+  const handleSubmit = () => {
+    if (!selectedDoctor || !selectedDate || !selectedTime) {
+      alert("Please select all fields before booking.");
+      return;
+    }
+
     alert(
-      `Appointment booked on ${selectedDate.format(
-        "YYYY-MM-DD"
-      )} at ${selectedTime}`
+      `Appointment booked successfully with ${selectedDoctor} on ${selectedDate} at ${selectedTime}`
     );
   };
 
   return (
     <Container maxWidth="md" sx={{ mt: 4 }}>
-      {/* Doctor Information */}
-      <Card sx={{ mb: 3, p: 2 }}>
-        <CardContent>
-          <Typography variant="h5" fontWeight="bold">
-            Dr. John Doe
-          </Typography>
-          <Typography variant="body1" color="textSecondary">
-            Cardiologist | 10 Years Experience
-          </Typography>
-          <Typography variant="body2">Clinic: HeartCare Hospital</Typography>
-        </CardContent>
-      </Card>
-
-      {/* Appointment Form */}
-      <Card sx={{ p: 3 }}>
-        <Typography variant="h6" fontWeight="bold" sx={{ mb: 2 }}>
+      <Paper elevation={3} sx={{ padding: 4, borderRadius: "12px" }}>
+        <Typography variant="h5" gutterBottom align="center">
           Book an Appointment
         </Typography>
 
-        {/* Date Picker */}
-        <LocalizationProvider dateAdapter={AdapterDayjs}>
-          <DatePicker
-            label="Select Date"
-            value={selectedDate}
-            onChange={(newDate) => setSelectedDate(newDate)}
-            renderInput={(params) => (
-              <TextField {...params} fullWidth sx={{ mb: 2 }} />
-            )}
-          />
-        </LocalizationProvider>
+        {/* Doctor Filter Section */}
+        <Grid container spacing={2}>
+          <Grid item xs={12} md={4}>
+            <FormControl fullWidth>
+              <InputLabel>Filter by City</InputLabel>
+              <Select
+                name="city"
+                value={filters.city}
+                onChange={handleFilterChange}
+              >
+                <MenuItem value="">All</MenuItem>
+                <MenuItem value="Delhi">Delhi</MenuItem>
+                <MenuItem value="Mumbai">Mumbai</MenuItem>
+                <MenuItem value="Bangalore">Bangalore</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <FormControl fullWidth>
+              <InputLabel>Filter by Specialization</InputLabel>
+              <Select
+                name="specialization"
+                value={filters.specialization}
+                onChange={handleFilterChange}
+              >
+                <MenuItem value="">All</MenuItem>
+                <MenuItem value="Cardiologist">Cardiologist</MenuItem>
+                <MenuItem value="Dentist">Dentist</MenuItem>
+                <MenuItem value="Orthopedic">Orthopedic</MenuItem>
+                <MenuItem value="Dermatologist">Dermatologist</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <TextField
+              fullWidth
+              label="Search by Name"
+              name="name"
+              value={filters.name}
+              onChange={handleFilterChange}
+            />
+          </Grid>
+        </Grid>
 
-        {/* Time Slots */}
+        {/* Doctor Selection */}
+        <FormControl fullWidth margin="normal">
+          <InputLabel>Select Doctor</InputLabel>
+          <Select value={selectedDoctor} onChange={handleDoctorChange}>
+            {filteredDoctors.map((doctor) => (
+              <MenuItem key={doctor.id} value={doctor.name}>
+                {doctor.name} - {doctor.specialization} ({doctor.city})
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
+        {/* Date Selection */}
         <TextField
-          select
-          label="Select Time"
-          value={selectedTime}
-          onChange={(e) => setSelectedTime(e.target.value)}
           fullWidth
-          sx={{ mb: 2 }}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <AccessTimeIcon />
-              </InputAdornment>
-            ),
-          }}
-        >
-          {availableTimeSlots.map((slot) => (
-            <MenuItem key={slot} value={slot}>
-              {slot}
-            </MenuItem>
-          ))}
-        </TextField>
+          label="Select Date"
+          type="date"
+          InputLabelProps={{ shrink: true }}
+          value={selectedDate}
+          onChange={handleDateChange}
+          margin="normal"
+        />
 
-        {/* Consultation Mode */}
-        <Typography variant="subtitle1" fontWeight="bold" sx={{ mt: 2 }}>
-          Consultation Type
-        </Typography>
-        <RadioGroup
-          row
-          value={consultationType}
-          onChange={(e) => setConsultationType(e.target.value)}
-        >
-          <FormControlLabel
-            value="in-person"
-            control={<Radio />}
-            label="In-Person Visit"
-          />
-          <FormControlLabel
-            value="video"
-            control={<Radio />}
-            label="Online Video Call"
-          />
-        </RadioGroup>
+        {/* Time Selection */}
+        <TextField
+          fullWidth
+          label="Select Time"
+          type="time"
+          InputLabelProps={{ shrink: true }}
+          value={selectedTime}
+          onChange={handleTimeChange}
+          margin="normal"
+        />
 
-        {/* Upload Medical Reports */}
-        <Button
-          variant="contained"
-          component="label"
-          startIcon={<CloudUploadIcon />}
-          sx={{ mt: 2, mb: 3 }}
-        >
-          Upload Medical Reports
-          <input type="file" hidden onChange={handleFileUpload} />
-        </Button>
-        {file && (
-          <Typography variant="body2">File Uploaded: {file.name}</Typography>
+        {/* Available Slots Info */}
+        {selectedTime && (
+          <Typography
+            variant="body1"
+            color={availableSlots > 0 ? "green" : "red"}
+            sx={{ mt: 2 }}
+          >
+            {availableSlots > 0
+              ? `${availableSlots} slots left for this time slot`
+              : "No slots available"}
+          </Typography>
         )}
 
-        {/* Confirm Booking Button */}
+        {/* Submit Button */}
         <Button
           variant="contained"
           color="primary"
           fullWidth
+          onClick={handleSubmit}
           sx={{ mt: 3 }}
-          onClick={handleBooking}
+          disabled={availableSlots === 0}
         >
-          Confirm Appointment
+          Book Appointment
         </Button>
-      </Card>
+      </Paper>
     </Container>
   );
 };
 
-export default Patientappoinment;
+export default PatientAppointment;

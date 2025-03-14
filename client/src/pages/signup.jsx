@@ -13,7 +13,9 @@ export default function Signup() {
   });
 
   const navigate = useNavigate();
-
+  const handleGooglesignup = () => {
+    window.open("http://localhost:3000/auth/google", "_self");
+  };
   const { storeTokenInLS } = useAuth();
 
   const handleInput = (e) => {
@@ -162,6 +164,27 @@ export default function Signup() {
                   <div>
                     <button type="button" onClick={handleSubmit}>
                       submit
+                    </button>
+                  </div>
+                  <div
+                    className="google-login"
+                    style={{ marginTop: "20px", textAlign: "center" }}
+                  >
+                    <button
+                      type="button"
+                      className="google-btn"
+                      onClick={handleGooglesignup}
+                      style={{
+                        backgroundColor: "#4285F4",
+                        color: "white",
+                        padding: "10px 20px",
+                        border: "none",
+                        borderRadius: "4px",
+                        cursor: "pointer",
+                        fontSize: "16px",
+                      }}
+                    >
+                      🔑 Sign up with Google
                     </button>
                   </div>
                 </form>
