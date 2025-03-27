@@ -60,6 +60,8 @@ const login = async (req, res) => {
         token: await userExist.generateToken(),
         userId: userExist._id.toString(),
       });
+      console.log("User Object: ", user);
+      console.log("User Role: ", user?.role);
     } else {
       res.status(400).json({ msg: "Invalid email or password" });
     }
@@ -74,6 +76,9 @@ const user = async (req, res) => {
   try {
     const userData = req.user;
     console.log("user no data ", userData);
+    console.log("User Object: ", user);
+    console.log("User Role: ", user?.role);
+
     return res.status(200).json({ userData });
   } catch (error) {
     console.log("error from the user route");

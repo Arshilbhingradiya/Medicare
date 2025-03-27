@@ -133,7 +133,8 @@ const Navbar = () => {
   const [anchorEl, setAnchorEl] = useState(null);
   const [darkMode, setDarkMode] = useState(false);
   const navigate = useNavigate();
-
+  console.log("User Object: ", user);
+  console.log("User Role: ", user?.role);
   // Theme configuration with updated colors
   const theme = createTheme({
     palette: {
@@ -304,16 +305,7 @@ const Navbar = () => {
               >
                 <AccountCircle />
               </IconButton>
-              {/* <Menu
-                anchorEl={anchorEl}
-                open={Boolean(anchorEl)}
-                onClose={handleprofile}
-              >
-                <MenuItem onClick={handleprofile}>Profile</MenuItem>
-                <MenuItem onClick={handleappoinment}>Appointments</MenuItem>
-                <MenuItem onClick={handledashboard}>Dashboard</MenuItem>
-                <MenuItem onClick={handleLogout}>Logout</MenuItem>
-              </Menu> */}
+
               <Menu
                 anchorEl={anchorEl}
                 open={Boolean(anchorEl)}
@@ -327,10 +319,11 @@ const Navbar = () => {
                     <MenuItem onClick={handlepatientrecords}>
                       Patient-records
                     </MenuItem>
+
                     {/* <MenuItem onClick={handledoctorsetting}>Settings</MenuItem> */}
                   </>
                 )}
-                {user?.role === "Patient" && (
+                {user?.role === "patient" && (
                   <>
                     <MenuItem onClick={handleappoinment}>Appointments</MenuItem>
                     <MenuItem onClick={handledashboard}>Dahboard</MenuItem>

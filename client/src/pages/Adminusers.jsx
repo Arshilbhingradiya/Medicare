@@ -59,6 +59,7 @@ const Adminusers = () => {
               <tr>
                 <th>Name</th>
                 <th>Email</th>
+                <th>Role</th>
                 <th>mobile</th>
                 <th>Update</th>
                 <th>Delete</th>
@@ -70,6 +71,7 @@ const Adminusers = () => {
                   <tr key={index}>
                     <td>{curUser.username}</td>
                     <td>{curUser.email}</td>
+                    <td>{curUser.role}</td>
                     <td>{curUser.phone}</td>
                     <td>
                       <Link to={`/admin/users/${curUser._id}/edit`}>Edit</Link>

@@ -22,6 +22,7 @@ import Doctordashboard from "./components/Doctor/Patientrecords";
 // import DoctorAppoinments from "./components/Doctor/DoctorAppoinment";
 import PatientRecords from "./components/Doctor/Patientrecords";
 import DoctorSearch from "./components/Patient/Doctorsearch";
+// import Adminverification from "./pages/Adminverfication";
 
 function App() {
   return (
@@ -49,7 +50,7 @@ function App() {
           ></Route>
           <Route path="/doctorsearch" element={<DoctorSearch />}></Route>
 
-          <Route path="/registerprofile" element={<Registerprofile />}></Route>
+          <Route path="/verifydoctor" element={<Registerprofile />}></Route>
           <Route path="/doctorprofile" element={<DoctorProfile />}></Route>
           <Route path="/doctordashboard" element={<Doctordashboard />}></Route>
           {/* <Route
@@ -63,6 +64,7 @@ function App() {
           <Route path="/Admin" element={<Adminlayout />}>
             <Route path="users" element={<Adminusers />} />
             <Route path="contacts" element={<Admincontacts />} />
+            {/* <Route path="status" element={<Adminverification />} /> */}
           </Route>
         </Routes>
       </BrowserRouter>

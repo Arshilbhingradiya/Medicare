@@ -10,8 +10,8 @@ const authrouter = require("./router/auth-router");
 const contactrouter = require("./router/contact-router");
 const servicerouter = require("./router/service-router");
 const adminrouter = require("./router/admin-router");
-const patientrouter = require("./router/patient-router.js");
-
+const patientrouter = require("./router/patient-router");
+const doctorrouter = require("./router/doctor-router");
 const googleAuthRoutes = require("./router/google-auth.js");
 app.use(session({ secret: "secret", resave: false, saveUninitialized: true }));
 
@@ -39,7 +39,11 @@ app.use("/api/data", servicerouter);
 // admin panel
 app.use("/api/admin", adminrouter);
 
+// patient panel
 app.use("/api/patientform", patientrouter);
+
+// Doctor panel
+app.use("/api/doctorform", doctorrouter);
 
 app.use(
   cors({
