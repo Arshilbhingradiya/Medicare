@@ -1,88 +1,77 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
+  Box,
+  Button,
   Card,
   CardContent,
-  Typography,
-  Avatar,
-  TextField,
-  IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  Button,
-  InputAdornment,
+  Chip,
+  Container,
   Grid,
-  Divider,
+  InputAdornment,
   Paper,
+  Stack,
+  TextField,
+  Typography,
 } from "@mui/material";
-import { Search, Visibility } from "@mui/icons-material";
-import { motion } from "framer-motion";
+import { Search } from "@mui/icons-material";
+import { useAuth } from "../../store/auth";
 
-const patientsData = [
-  {
-    id: 1,
-    name: "Alice Johnson",
-    age: 28,
-    contact: "alice@example.com",
-    details: "Diabetes, Hypertension",
-  },
-  {
-    id: 2,
-    name: "Mark Smith",
-    age: 35,
-    contact: "mark@example.com",
-    details: "Asthma, Allergy",
-  },
-  {
-    id: 3,
-    name: "David Brown",
-    age: 40,
-    contact: "david@example.com",
-    details: "High BP, Obesity",
-  },
-  {
-    id: 4,
-    name: "Sarah Wilson",
-    age: 30,
-    contact: "sarah@example.com",
-    details: "Migraine, Anxiety",
-  },
-];
+const getDoctorKey = (doctorName) =>
+  (doctorName || "doctor")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
 
 const PatientRecords = () => {
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedPatient, setSelectedPatient] = useState(null);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [selectedDate, setSelectedDate] = useState("");
+  const [records, setRecords] = useState([]);
 
-  const handleSearch = (e) => setSearchQuery(e.target.value.toLowerCase());
+  const doctorName =
+    JSON.parse(localStorage.getItem("doctorProfile") || "{}")?.name ||
+    user?.username ||
+    user?.name ||
+    "Dr. Current User";
 
-  const filteredPatients = patientsData.filter((patient) =>
-    patient.name.toLowerCase().includes(searchQuery)
-  );
+  useEffect(() => {
+    const key = `doctorPatientHistory_${getDoctorKey(doctorName)}`;
+    const stored = JSON.parse(localStorage.getItem(key) || "[]");
+    setRecords(Array.isArray(stored) ? stored : []);
 
-  const handleViewDetails = (patient) => {
-    setSelectedPatient(patient);
-    setIsDialogOpen(true);
-  };
+    const syncRecords = () => {
+      const refreshed = JSON.parse(localStorage.getItem(key) || "[]");
+      setRecords(Array.isArray(refreshed) ? refreshed : []);
+    };
+
+    window.addEventListener("history-updated", syncRecords);
+    return () => window.removeEventListener("history-updated", syncRecords);
+  }, [doctorName]);
+
+  const filteredRecords = records.filter((record) => {
+    const matchesQuery =
+      record.patientName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      record.notes?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesDate = selectedDate ? record.date === selectedDate : true;
+    return matchesQuery && matchesDate;
+  });
 
   return (
-    <div className="min-h-screen flex flex-col items-center bg-gray-50 dark:bg-gray-900 p-8">
-      <div className="w-full max-w-4xl bg-white dark:bg-gray-800 shadow-xl rounded-xl p-6">
-        <Typography
-          variant="h4"
-          className="text-center text-blue-600 dark:text-white font-bold mb-6"
-        >
-          🏥 Patient Records
+    <Container maxWidth="xl" sx={{ py: 4, px: { xs: 2, md: 4, lg: 6 } }}>
+      <Paper elevation={4} sx={{ p: { xs: 3, md: 5, lg: 6 }, borderRadius: 4, background: "linear-gradient(135deg, #f8fbff 0%, #eef4ff 100%)" }}>
+        <Typography variant="h4" fontWeight={700} color="primary.main" gutterBottom>
+          Patient History
+        </Typography>
+        <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+          Track every treated patient for {doctorName}. Records are scoped to this doctor only.
         </Typography>
 
-        {/* Search Bar */}
-        <div className="mb-6">
+        <Stack direction={{ xs: "column", md: "row" }} spacing={2} sx={{ mb: 3 }}>
           <TextField
-            variant="outlined"
-            label="🔍 Search Patients"
             fullWidth
-            onChange={handleSearch}
-            className="bg-white dark:bg-gray-700 shadow-md rounded-lg"
+            label="Search by patient or notes"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
@@ -91,145 +80,55 @@ const PatientRecords = () => {
               ),
             }}
           />
-        </div>
+          <TextField
+            label="Filter by date"
+            type="date"
+            value={selectedDate}
+            onChange={(event) => setSelectedDate(event.target.value)}
+            InputLabelProps={{ shrink: true }}
+            sx={{ minWidth: { xs: "100%", md: 240 } }}
+          />
+        </Stack>
 
-        {/* Patient List Grid */}
-        <Grid container spacing={3}>
-          {filteredPatients.map((patient) => (
-            <Grid item xs={12} sm={6} key={patient.id}>
-              <motion.div
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.98 }}
-                className="cursor-pointer"
-              >
-                <Card className="shadow-md bg-gradient-to-r from-white to-gray-100 dark:from-gray-700 dark:to-gray-800 rounded-xl">
-                  <CardContent className="flex flex-col items-center p-6">
-                    <Avatar
-                      className="bg-blue-500 text-white mb-3"
-                      sx={{ width: 70, height: 70, fontSize: "1.5rem" }}
-                    >
-                      {patient.name[0]}
-                    </Avatar>
-                    <Typography
-                      variant="h6"
-                      className="font-semibold dark:text-white"
-                    >
-                      {patient.name}
+        <Stack direction="row" spacing={1} sx={{ mb: 3, flexWrap: "wrap" }}>
+          <Chip label={`${filteredRecords.length} matching visits`} color="primary" variant="outlined" />
+          <Chip label="Doctor-specific records" color="secondary" variant="outlined" />
+        </Stack>
+
+        <Grid container spacing={2.5}>
+          {filteredRecords.length > 0 ? (
+            filteredRecords.map((record) => (
+              <Grid item xs={12} md={6} lg={4} key={record.id}>
+                <Card sx={{ height: "100%", borderRadius: 3, boxShadow: "0 8px 24px rgba(13,71,161,0.08)" }}>
+                  <CardContent>
+                    <Typography variant="h6" fontWeight={700} color="primary.main">
+                      {record.patientName || "Patient"}
                     </Typography>
-                    <Typography
-                      variant="body2"
-                      className="text-gray-600 dark:text-gray-300"
-                    >
-                      Age: {patient.age}
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                      {record.date} • {record.time}
                     </Typography>
-                    <Typography
-                      variant="body2"
-                      className="text-gray-600 dark:text-gray-300"
-                    >
-                      Contact: {patient.contact}
+                    <Typography variant="body2" sx={{ mt: 1.5 }}>
+                      {record.notes || "No treatment notes yet."}
                     </Typography>
-                    <Button
-                      variant="contained"
-                      color="primary"
-                      className="mt-4"
-                      onClick={() => handleViewDetails(patient)}
-                    >
-                      View Details
-                    </Button>
+                    <Box sx={{ mt: 2 }}>
+                      <Chip label="Completed" color="success" size="small" />
+                    </Box>
                   </CardContent>
                 </Card>
-              </motion.div>
-            </Grid>
-          ))}
-        </Grid>
-      </div>
-
-      {/* Patient Details Dialog with Vertical Layout */}
-      <Dialog
-        open={isDialogOpen}
-        onClose={() => setIsDialogOpen(false)}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle className="text-blue-700 dark:text-white font-bold text-center">
-          🩺 Patient Details
-        </DialogTitle>
-        <DialogContent>
-          {selectedPatient && (
-            <Paper
-              elevation={3}
-              className="p-6 rounded-lg bg-gray-50 dark:bg-gray-800"
-            >
-              <Grid container spacing={2} justifyContent="center">
-                <Grid item xs={12} className="flex justify-center">
-                  <Avatar
-                    sx={{
-                      width: 90,
-                      height: 90,
-                      fontSize: "2rem",
-                      bgcolor: "primary.main",
-                    }}
-                  >
-                    {selectedPatient.name[0]}
-                  </Avatar>
-                </Grid>
-
-                {/* Basic Info */}
-                <Grid item xs={12} className="text-center">
-                  <Typography
-                    variant="h5"
-                    className="font-bold text-blue-700 dark:text-white"
-                  >
-                    {selectedPatient.name}
-                  </Typography>
-                  <Typography
-                    variant="body2"
-                    className="text-gray-600 dark:text-gray-300"
-                  >
-                    Age: {selectedPatient.age}
-                  </Typography>
-                  <Typography
-                    variant="body2"
-                    className="text-gray-600 dark:text-gray-300"
-                  >
-                    Contact: {selectedPatient.contact}
-                  </Typography>
-                </Grid>
-
-                <Divider className="w-full mt-3" />
-
-                {/* Medical History in Vertical Panel */}
-                <Grid item xs={12} className="mt-4">
-                  <Typography
-                    variant="h6"
-                    className="text-blue-700 dark:text-white font-semibold"
-                  >
-                    📜 Medical History
-                  </Typography>
-                  <Typography
-                    variant="body1"
-                    className="mt-2 text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 p-4 rounded-lg shadow-sm"
-                  >
-                    {selectedPatient.details}
-                  </Typography>
-                </Grid>
-
-                {/* Close Button */}
-                <Grid item xs={12} className="flex justify-center mt-4">
-                  <Button
-                    variant="contained"
-                    color="secondary"
-                    onClick={() => setIsDialogOpen(false)}
-                  >
-                    Close
-                  </Button>
-                </Grid>
               </Grid>
-            </Paper>
+            ))
+          ) : (
+            <Grid item xs={12}>
+              <Paper sx={{ p: 4, textAlign: "center", borderRadius: 3, bgcolor: "#f8fbff" }}>
+                <Typography variant="h6" color="text.secondary">
+                  No records found for this doctor yet.
+                </Typography>
+              </Paper>
+            </Grid>
           )}
-        </DialogContent>
-      </Dialog>
-    </div>
+        </Grid>
+      </Paper>
+    </Container>
   );
 };
 

@@ -27,7 +27,12 @@ export default function Signup() {
     setuser({ ...user, [name]: value });
   };
   const handleSubmit = async (e) => {
-    e.preventDefault;
+    e.preventDefault();
+    if (!user.role) {
+      alert("Please select a role: Patient or Doctor");
+      return;
+    }
+
     console.log(user);
     try {
       const response = await fetch("http://localhost:3000/api/auth/register", {
@@ -43,7 +48,7 @@ export default function Signup() {
       if (response.ok) {
         storeTokenInLS(res_data.token);
 
-        navigate("/");
+        navigate(user.role === "Doctor" ? "/doctordashboard" : "/patientdashboard");
 
         setuser({
           username: "",
@@ -53,7 +58,7 @@ export default function Signup() {
           role: "",
         });
       } else {
-        alert("invlaid dta");
+        alert(res_data?.msg || "Invalid registration data");
       }
       console.log("myname", response);
     } catch (error) {
@@ -71,7 +76,7 @@ export default function Signup() {
                 <h1 className="main-heading mb-3">Registration Form</h1>
                 <br />
 
-                <form>
+                <form onSubmit={handleSubmit}>
                   <div>
                     <label htmlFor="username">username</label>
                     <input
@@ -101,7 +106,7 @@ export default function Signup() {
                   <div>
                     <label htmlFor="username">phone no.</label>
                     <input
-                      type="number"
+                      type="tel"
                       name="phone"
                       placeholder="phone"
                       id="phone"
@@ -162,7 +167,7 @@ export default function Signup() {
                     </div>
                   </div>
                   <div>
-                    <button type="button" onClick={handleSubmit}>
+                    <button type="submit">
                       submit
                     </button>
                   </div>

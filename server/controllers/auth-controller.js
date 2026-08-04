@@ -2,6 +2,15 @@ const { hash } = require("bcryptjs");
 const User = require("../models/user-model");
 const bcrypt = require("bcryptjs");
 
+const normalizeRole = (role) => {
+  const normalizedRole = role?.trim().toLowerCase();
+
+  if (normalizedRole === "doctor") return "Doctor";
+  if (normalizedRole === "patient") return "Patient";
+
+  return "";
+};
+
 const home = async (req, res) => {
   try {
     res.status(200).send("welcome my website using router");
@@ -12,61 +21,73 @@ const home = async (req, res) => {
 const register = async (req, res) => {
   try {
     const { username, email, phone, password, role } = req.body;
+    const normalizedRole = normalizeRole(role);
 
-    const userExist = await User.findOne({ email });
-
-    if (userExist) {
-      res.status(404).json({ msg: "email alredy exist" });
+    if (!normalizedRole) {
+      return res.status(400).json({ msg: "Please select a valid role" });
     }
 
-    // hash the password
+    const userExist = await User.findOne({ email: email?.trim().toLowerCase() });
+
+    if (userExist) {
+      return res.status(409).json({ msg: "Email already exists" });
+    }
+
     const saltround = 10;
     const hash_password = await bcrypt.hash(password, saltround);
-    // to next line usercreated in this line password: hash_password lakhvu for this method
 
     const userCreated = await User.create({
-      username,
-      email,
-      phone,
+      username: username?.trim(),
+      email: email?.trim().toLowerCase(),
+      phone: String(phone).trim(),
       password: hash_password,
-      role,
+      role: normalizedRole,
     });
 
-    res.status(200).json({
+    return res.status(200).json({
       msg: "Registration successfully",
       token: await userCreated.generateToken(),
       userId: userCreated._id.toString(),
     });
   } catch (error) {
-    res.status(501).json("internal server error");
+    console.error("Registration error:", error);
+    return res.status(500).json({ msg: "Internal server error" });
   }
 };
 
 const login = async (req, res) => {
   try {
     const { email, password, role } = req.body;
+    const normalizedRole = normalizeRole(role);
 
-    const userExist = await User.findOne({ email, role });
+    if (!normalizedRole) {
+      return res.status(400).json({ msg: "Please select a valid role" });
+    }
+
+    const userExist = await User.findOne({
+      email: email?.trim().toLowerCase(),
+      role: normalizedRole,
+    });
 
     if (!userExist) {
-      res.status(401).json({ msg: "Invalid credential" });
+      return res.status(401).json({ msg: "Invalid credential" });
     }
 
     const ispasswordvalid = await bcrypt.compare(password, userExist.password);
 
     if (ispasswordvalid) {
-      res.status(200).json({
+      return res.status(200).json({
         msg: "Login successfully",
         token: await userExist.generateToken(),
         userId: userExist._id.toString(),
+        role: userExist.role,
       });
-      console.log("User Object: ", user);
-      console.log("User Role: ", user?.role);
-    } else {
-      res.status(400).json({ msg: "Invalid email or password" });
     }
+
+    return res.status(400).json({ msg: "Invalid email or password" });
   } catch (error) {
-    res.status(500).json("internal server error");
+    console.error("Login error:", error);
+    return res.status(500).json({ msg: "Internal server error" });
   }
 };
 
@@ -75,13 +96,11 @@ const login = async (req, res) => {
 const user = async (req, res) => {
   try {
     const userData = req.user;
-    console.log("user no data ", userData);
-    console.log("User Object: ", user);
-    console.log("User Role: ", user?.role);
 
     return res.status(200).json({ userData });
   } catch (error) {
-    console.log("error from the user route");
+    console.error("error from the user route", error);
+    return res.status(500).json({ msg: "Internal server error" });
   }
 };
-module.exports = { home, register, login, user };
+module.exports = { home, register, login, user, normalizeRole };

@@ -7,9 +7,12 @@ const URI = process.env.MONGO_CONN;
 const connectdb = async () => {
   try {
     await mongoose.connect(URI);
+    console.log(URI);
     console.log("mongodb succesfully connected");
   } catch (error) {
+    console.log(URI);
     console.log("mongodb error");
+    console.log(error);
   }
 };
 // const { InfluDataService } = require("./models/influencer-model");

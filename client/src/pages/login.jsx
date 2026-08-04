@@ -23,7 +23,7 @@ export default function Login() {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault(); // ✅ Corrected this line
+    e.preventDefault();
 
     if (!log.role) {
       alert("Please select a role: Patient or Doctor");
@@ -39,13 +39,14 @@ export default function Login() {
         body: JSON.stringify(log),
       });
 
+      const res_data = await response.json();
+
       if (response.ok) {
-        const res_data = await response.json();
         storeTokenInLS(res_data.token);
-        navigate("/");
         setlog({ email: "", password: "", role: "" });
+        navigate(log.role === "Doctor" ? "/doctordashboard" : "/patientdashboard");
       } else {
-        alert("Invalid email or password");
+        alert(res_data?.msg || "Invalid email or password");
       }
     } catch (error) {
       console.error("Login error:", error);

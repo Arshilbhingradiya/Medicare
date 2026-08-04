@@ -19,12 +19,20 @@ const AuthProvider = ({ children }) => {
 
   const LogoutUser = () => {
     setToken("");
+    setuser("");
+    setservice("");
     return localStorage.removeItem("token");
   };
 
   // JWT authentication- to get currently login user data like( "hello arshil ");
 
   const userAuthentication = async () => {
+    if (!token) {
+      setuser("");
+      setIsLoading(false);
+      return;
+    }
+
     try {
       setIsLoading(true);
       const response = await fetch("http://localhost:3000/api/auth/user", {
@@ -35,12 +43,15 @@ const AuthProvider = ({ children }) => {
       });
       if (response.ok) {
         const data = await response.json();
-        console.log("userdata ", data.userData);
         setuser(data.userData);
+      } else {
+        setuser("");
       }
       setIsLoading(false);
     } catch (error) {
       console.error("error fetching data", error);
+      setuser("");
+      setIsLoading(false);
     }
   };
   const getservice = async () => {
@@ -57,7 +68,7 @@ const AuthProvider = ({ children }) => {
   useEffect(() => {
     getservice();
     userAuthentication();
-  }, []);
+  }, [token]);
 
   return (
     <AuthContext.Provider

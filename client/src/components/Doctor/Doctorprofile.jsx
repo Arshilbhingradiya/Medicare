@@ -12,6 +12,9 @@ import {
   Grid,
   Avatar,
   IconButton,
+  Box,
+  Stack,
+  Divider,
 } from "@mui/material";
 import { PhotoCamera } from "@mui/icons-material";
 import { useAuth } from "../../store/auth";
@@ -20,14 +23,16 @@ export default function DoctorProfile() {
   const [doctor, setDoctor] = useState({
     name: "",
     email: "",
+    phone: "",
     license: "",
     specialization: "",
-    phone: "",
     clinicAddress: "",
     city: "",
     yearsOfExperience: "",
     qualifications: "",
     availability: "",
+    availabilitySchedule: "09:00-13:00,17:00-20:00",
+    slotCapacity: "4",
     bio: "",
     profileImage: "",
   });
@@ -37,18 +42,17 @@ export default function DoctorProfile() {
   const { user } = useAuth();
 
   useEffect(() => {
-    // ✅ Load saved profile from localStorage
     const storedDoctor = JSON.parse(localStorage.getItem("doctorProfile"));
 
     if (storedDoctor) {
       setDoctor(storedDoctor);
       setImagePreview(storedDoctor.profileImage || "");
     } else if (user) {
-      // Populate with user data initially
       setDoctor((prev) => ({
         ...prev,
-        name: user.name || "",
+        name: user.name || user.username || "",
         email: user.email || "",
+        phone: user.phone || "",
       }));
     }
   }, [user]);
@@ -62,8 +66,10 @@ export default function DoctorProfile() {
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setImagePreview(reader.result);
-        setDoctor((prev) => ({ ...prev, profileImage: reader.result }));
+        const imageData = reader.result;
+        setImagePreview(imageData);
+        setDoctor((prev) => ({ ...prev, profileImage: imageData }));
+        window.dispatchEvent(new Event("profile-updated"));
       };
       reader.readAsDataURL(file);
     }
@@ -78,20 +84,17 @@ export default function DoctorProfile() {
 
     const storedDoctor = JSON.parse(localStorage.getItem("doctorProfile"));
 
-    // ✅ Check if data is identical before saving
     if (storedDoctor && isEqual(doctor, storedDoctor)) {
       console.log("No changes detected. Skipping save.");
       alert("No changes made.");
-      return; // Skip saving if no changes
+      return;
     }
 
     try {
-      // ✅ Save only unique data to localStorage
       localStorage.setItem("doctorProfile", JSON.stringify(doctor));
       console.log("Profile saved:", doctor);
       setOpenSnackbar(true);
 
-      // Simulate API call
       const response = await fetch(
         "http://localhost:3000/api/doctorform/doctorprofile",
         {
@@ -102,6 +105,7 @@ export default function DoctorProfile() {
       );
 
       if (response.ok) {
+        window.dispatchEvent(new Event("profile-updated"));
         console.log("Profile saved to server");
       } else {
         console.error("Failed to save profile");
@@ -114,194 +118,129 @@ export default function DoctorProfile() {
   const handleCloseSnackbar = () => setOpenSnackbar(false);
 
   return (
-    <Container
-      maxWidth="lg"
-      className="min-h-screen flex justify-center items-center bg-gray-50 py-10"
-    >
-      <Card className="w-full shadow-2xl p-8 rounded-2xl bg-white">
-        <CardContent>
-          <Typography
-            variant="h4"
-            className="mb-8 text-center font-semibold text-gray-700"
-          >
-            Doctor Profile Setup
-          </Typography>
-
-          {/* Image Upload */}
-          <div className="flex justify-center mb-6">
-            <div className="relative">
+    <Container maxWidth="lg" sx={{ py: 6 }}>
+      <Card
+        sx={{
+          borderRadius: 4,
+          overflow: "hidden",
+          boxShadow: "0 20px 45px rgba(13, 71, 161, 0.16)",
+          border: "1px solid #e3f2fd",
+        }}
+      >
+        <Box
+          sx={{
+            background: "linear-gradient(135deg, #0d47a1 0%, #1976d2 100%)",
+            color: "white",
+            p: { xs: 3, md: 4 },
+          }}
+        >
+          <Stack direction={{ xs: "column", md: "row" }} spacing={3} alignItems={{ xs: "center", md: "flex-start" }}>
+            <Box sx={{ position: "relative" }}>
               <Avatar
                 src={imagePreview || "https://via.placeholder.com/150"}
                 alt="Doctor Profile"
-                sx={{ width: 120, height: 120 }}
-                className="shadow-md"
+                sx={{ width: 120, height: 120, border: "4px solid white", boxShadow: 3 }}
               />
               <IconButton
-                color="primary"
                 aria-label="upload picture"
                 component="label"
-                className="absolute bottom-0 right-0 bg-white shadow rounded-full"
+                sx={{
+                  position: "absolute",
+                  bottom: 0,
+                  right: -4,
+                  bgcolor: "white",
+                  boxShadow: 2,
+                  border: "1px solid #ddd",
+                  width: 42,
+                  height: 42,
+                }}
               >
-                <input
-                  hidden
-                  accept="image/*"
-                  type="file"
-                  onChange={handleImageChange}
-                />
+                <input hidden accept="image/*" type="file" onChange={handleImageChange} />
                 <PhotoCamera />
               </IconButton>
-            </div>
-          </div>
+            </Box>
 
-          <Grid container spacing={3}>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                required
-                label="Full Name"
-                name="name"
-                variant="outlined"
-                value={doctor.name}
-                onChange={handleChange}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                required
-                label="Email Address"
-                name="email"
-                variant="outlined"
-                value={doctor.email}
-                onChange={handleChange}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="License Number (Optional)"
-                name="license"
-                variant="outlined"
-                value={doctor.license}
-                onChange={handleChange}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                required
-                select
-                label="Specialization"
-                name="specialization"
-                variant="outlined"
-                value={doctor.specialization}
-                onChange={handleChange}
-              >
-                <MenuItem value="General Physician">General Physician</MenuItem>
-                <MenuItem value="Cardiologist">Cardiologist</MenuItem>
-                <MenuItem value="Dermatologist">Dermatologist</MenuItem>
-                <MenuItem value="Neurologist">Neurologist</MenuItem>
-                <MenuItem value="Orthopedic">Orthopedic</MenuItem>
-              </TextField>
-            </Grid>
+            <Box>
+              <Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
+                Doctor Profile Setup
+              </Typography>
+              <Typography variant="body1" sx={{ opacity: 0.95 }}>
+                Present your professional details in a clean, modern format for patients.
+              </Typography>
+            </Box>
+          </Stack>
+        </Box>
 
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Phone Number"
-                name="phone"
-                variant="outlined"
-                value={doctor.phone}
-                onChange={handleChange}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                required
-                label="City"
-                name="city"
-                variant="outlined"
-                value={doctor.city}
-                onChange={handleChange}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Clinic Address"
-                name="clinicAddress"
-                variant="outlined"
-                value={doctor.clinicAddress}
-                onChange={handleChange}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Years of Experience"
-                name="yearsOfExperience"
-                variant="outlined"
-                value={doctor.yearsOfExperience}
-                onChange={handleChange}
-              />
-            </Grid>
+        <CardContent sx={{ p: { xs: 3, md: 4 } }}>
+          <Divider sx={{ mb: 3 }} />
 
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Qualifications (Optional)"
-                name="qualifications"
-                variant="outlined"
-                value={doctor.qualifications}
-                onChange={handleChange}
-              />
+          <Box sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 3, bgcolor: "#f8fbff", border: "1px solid #e3f2fd", mb: 3 }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 700, color: "#0d47a1", mb: 2 }}>
+              Personal & Professional Details
+            </Typography>
+            <Grid container spacing={2.5}>
+              <Grid item xs={12} sm={6}>
+                <TextField fullWidth required label="Full Name" name="name" variant="outlined" value={doctor.name} onChange={handleChange} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }} />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField fullWidth required label="Email Address" name="email" variant="outlined" value={doctor.email} onChange={handleChange} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }} />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField fullWidth label="License Number (Optional)" name="license" variant="outlined" value={doctor.license} onChange={handleChange} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }} />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField fullWidth required select label="Specialization" name="specialization" variant="outlined" value={doctor.specialization} onChange={handleChange} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}>
+                  <MenuItem value="General Physician">General Physician</MenuItem>
+                  <MenuItem value="Cardiologist">Cardiologist</MenuItem>
+                  <MenuItem value="Dermatologist">Dermatologist</MenuItem>
+                  <MenuItem value="Neurologist">Neurologist</MenuItem>
+                  <MenuItem value="Orthopedic">Orthopedic</MenuItem>
+                </TextField>
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField fullWidth label="Years of Experience" name="yearsOfExperience" variant="outlined" value={doctor.yearsOfExperience} onChange={handleChange} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }} />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField fullWidth label="Qualifications (Optional)" name="qualifications" variant="outlined" value={doctor.qualifications} onChange={handleChange} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }} />
+              </Grid>
             </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Availability (Optional)"
-                name="availability"
-                variant="outlined"
-                value={doctor.availability}
-                onChange={handleChange}
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                multiline
-                rows={3}
-                label="Short Bio (Optional)"
-                name="bio"
-                variant="outlined"
-                value={doctor.bio}
-                onChange={handleChange}
-              />
-            </Grid>
-          </Grid>
+          </Box>
 
-          <Button
-            fullWidth
-            variant="contained"
-            color="primary"
-            size="large"
-            onClick={handleSubmit}
-            className="mt-6"
-          >
+          <Box sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 3, bgcolor: "#fcfdff", border: "1px solid #e3f2fd" }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 700, color: "#0d47a1", mb: 2 }}>
+              Contact & Availability
+            </Typography>
+            <Grid container spacing={2.5}>
+              <Grid item xs={12} sm={6}>
+                <TextField fullWidth label="Phone Number" name="phone" variant="outlined" value={doctor.phone} onChange={handleChange} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }} />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField fullWidth required label="City" name="city" variant="outlined" value={doctor.city} onChange={handleChange} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }} />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField fullWidth label="Availability Schedule" name="availabilitySchedule" variant="outlined" value={doctor.availabilitySchedule} onChange={handleChange} helperText="Example: 09:00-13:00,17:00-20:00" sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }} />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField fullWidth label="Patients per slot" name="slotCapacity" type="number" variant="outlined" value={doctor.slotCapacity} onChange={handleChange} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }} />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField fullWidth label="Clinic Address" name="clinicAddress" variant="outlined" value={doctor.clinicAddress} onChange={handleChange} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }} />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField fullWidth label="Availability (Optional)" name="availability" variant="outlined" value={doctor.availability} onChange={handleChange} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }} />
+              </Grid>
+              <Grid item xs={12}>
+                <TextField fullWidth multiline rows={4} label="Short Bio (Optional)" name="bio" variant="outlined" value={doctor.bio} onChange={handleChange} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }} />
+              </Grid>
+            </Grid>
+          </Box>
+
+          <Button fullWidth variant="contained" size="large" onClick={handleSubmit} sx={{ mt: 4, borderRadius: 2, py: 1.4, fontWeight: 700, textTransform: "none", background: "linear-gradient(135deg, #0d47a1 0%, #1976d2 100%)", boxShadow: "0 8px 20px rgba(25, 118, 210, 0.25)", '&:hover': { background: "linear-gradient(135deg, #08306b 0%, #1565c0 100%)" } }}>
             Save Profile
           </Button>
 
-          <Snackbar
-            open={openSnackbar}
-            autoHideDuration={3000}
-            onClose={handleCloseSnackbar}
-          >
-            <Alert
-              onClose={handleCloseSnackbar}
-              severity="success"
-              sx={{ width: "100%" }}
-            >
+          <Snackbar open={openSnackbar} autoHideDuration={3000} onClose={handleCloseSnackbar}>
+            <Alert onClose={handleCloseSnackbar} severity="success" sx={{ width: "100%" }}>
               Profile saved successfully!
             </Alert>
           </Snackbar>
