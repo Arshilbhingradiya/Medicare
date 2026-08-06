@@ -99,8 +99,13 @@ export default function DoctorProfile() {
         "http://localhost:3000/api/doctorform/doctorprofile",
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(doctor),
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: localStorage.getItem("token")
+              ? `Bearer ${localStorage.getItem("token")}`
+              : "",
+          },
+          body: JSON.stringify({ ...doctor, userId: user?.id }),
         }
       );
 

@@ -15,6 +15,7 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  Alert,
 } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../store/auth";
@@ -28,7 +29,7 @@ const getDoctorKey = (doctorName) =>
 const getTodayDate = () => new Date().toISOString().split("T")[0];
 
 const Doctordashboard = () => {
-  const { user } = useAuth();
+  const { user, authorizationtoken } = useAuth();
   const navigate = useNavigate();
   const [appointments, setAppointments] = useState([]);
   const [selectedDate, setSelectedDate] = useState(getTodayDate());
@@ -36,6 +37,9 @@ const Doctordashboard = () => {
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [notes, setNotes] = useState("");
   const [notesDialogOpen, setNotesDialogOpen] = useState(false);
+  const [subscriptionStatus, setSubscriptionStatus] = useState(null);
+  const [subscriptionExpiry, setSubscriptionExpiry] = useState(null);
+  const [trialEndsAt, setTrialEndsAt] = useState(null);
 
   const doctorName =
     JSON.parse(localStorage.getItem("doctorProfile") || "{}")?.name ||
@@ -56,6 +60,30 @@ const Doctordashboard = () => {
     window.addEventListener("appointments-updated", syncAppointments);
     return () => window.removeEventListener("appointments-updated", syncAppointments);
   }, [doctorName]);
+
+  useEffect(() => {
+    const fetchSubscription = async () => {
+      try {
+        const response = await fetch(
+          "http://localhost:3000/api/doctorform/subscription/status",
+          {
+            method: "GET",
+            headers: { Authorization: authorizationtoken },
+          }
+        );
+        if (response.ok) {
+          const data = await response.json();
+          setSubscriptionStatus(data.status || "None");
+          setSubscriptionExpiry(data.subscription?.expiryDate || data.expiryDate || null);
+          setTrialEndsAt(data.trialEndsAt || null);
+        }
+      } catch (error) {
+        console.error("Error fetching subscription:", error);
+      }
+    };
+    fetchSubscription();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const visibleAppointments = appointments.filter((appointment) => appointment.date === selectedDate);
 
@@ -125,10 +153,44 @@ const Doctordashboard = () => {
           <Typography variant="h5" fontWeight={600} color="text.primary">
             Dashboard
           </Typography>
-          <Typography variant="body1" color="text.secondary" sx={{ mt: 0.5 }}>
+<Typography variant="body1" color="text.secondary" sx={{ mt: 0.5 }}>
             Review today’s visits first and switch to any other date to see planned appointments.
           </Typography>
         </Box>
+
+        {subscriptionStatus === "Active" && subscriptionExpiry && (
+          <Alert severity="success" sx={{ mb: 3, borderRadius: 2 }}>
+            Your subscription is <strong>Active</strong> until{" "}
+            <strong>{new Date(subscriptionExpiry).toLocaleDateString()}</strong>.
+          </Alert>
+        )}
+
+        {subscriptionStatus === "Trial" && trialEndsAt && (
+          <Alert severity="info" sx={{ mb: 3, borderRadius: 2 }}>
+            You are on a <strong>14-day free trial</strong> ending on{" "}
+            <strong>{new Date(trialEndsAt).toLocaleDateString()}</strong>.{" "}
+            <Button
+              color="primary"
+              size="small"
+              onClick={() => navigate("/subscription")}
+            >
+              Subscribe Now
+            </Button>
+          </Alert>
+        )}
+
+        {subscriptionStatus === "None" && (
+          <Alert severity="warning" sx={{ mb: 3, borderRadius: 2 }}>
+            You have no active subscription.{" "}
+            <Button
+              color="primary"
+              size="small"
+              onClick={() => navigate("/subscription")}
+            >
+              Start Free Trial / Subscribe
+            </Button>
+          </Alert>
+        )}
 
         <Stack direction={{ xs: "column", md: "row" }} spacing={2} sx={{ mb: 3 }} alignItems={{ xs: "stretch", md: "center" }}>
           <TextField
@@ -151,11 +213,11 @@ const Doctordashboard = () => {
 
         <Grid container spacing={2.5}>
           {visibleAppointments.length > 0 ? (
-            visibleAppointments.map((appointment) => (
-              <Grid item xs={12} md={6} lg={4} key={appointment.id}>
+visibleAppointments.map((appointment) => (
+              <Grid item xs={12} key={appointment.id}>
                 <Card
                   sx={{
-                    height: "100%",
+                    width: "100%",
                     borderRadius: 3,
                     boxShadow: "0 8px 24px rgba(13,71,161,0.08)",
                     cursor: "pointer",
@@ -167,50 +229,78 @@ const Doctordashboard = () => {
                   }}
                   onClick={() => handleOpenPatientFile(appointment)}
                 >
-                  <CardContent>
-                    <Typography variant="h6" fontWeight={700} color="primary.main">
-                      {appointment.patientName || "Patient"}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                      {appointment.date} • {appointment.time}
-                    </Typography>
-                    <Typography variant="body2" sx={{ mt: 1.5 }}>
-                      Doctor: {appointment.doctor}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                      Click to open the full hospital case file.
-                    </Typography>
-                    <Box sx={{ mt: 2, display: "flex", gap: 1, flexWrap: "wrap" }}>
-                      <Button
-                        variant="contained"
-                        color="primary"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          handleOpenPatientFile(appointment);
-                        }}
-                      >
-                        Open File
-                      </Button>
-                      <Button
-                        variant="outlined"
-                        color="secondary"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          handleOpenNotes(appointment);
-                        }}
-                      >
-                        Add Notes
-                      </Button>
-                      <Button
-                        variant="outlined"
-                        color="success"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          handleMarkDone(appointment);
-                        }}
-                      >
-                        Mark Done
-                      </Button>
+                  <CardContent
+                    sx={{
+                      display: "flex",
+                      flexDirection: { xs: "column", sm: "row" },
+                      alignItems: { xs: "flex-start", sm: "center" },
+                      gap: 2,
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        width: { xs: 56, sm: 64 },
+                        height: { xs: 56, sm: 64 },
+                        borderRadius: 2,
+                        bgcolor: "rgba(13,71,161,0.08)",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <Typography variant="h5" fontWeight={800} color="primary.main">
+                        {(appointment.patientName || "P").charAt(0).toUpperCase()}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                      <Typography variant="h6" fontWeight={700} color="primary.main">
+                        {appointment.patientName || "Patient"}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {appointment.date} • {appointment.time}
+                      </Typography>
+                      <Typography variant="body2" sx={{ mt: 0.5 }}>
+                        Doctor: {appointment.doctor}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                        Click to open the full hospital case file.
+                      </Typography>
+                      <Box sx={{ mt: 1.5, display: "flex", gap: 1, flexWrap: "wrap" }}>
+                        <Button
+                          variant="contained"
+                          color="primary"
+                          size="small"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleOpenPatientFile(appointment);
+                          }}
+                        >
+                          Open File
+                        </Button>
+                        <Button
+                          variant="outlined"
+                          color="secondary"
+                          size="small"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleOpenNotes(appointment);
+                          }}
+                        >
+                          Add Notes
+                        </Button>
+                        <Button
+                          variant="outlined"
+                          color="success"
+                          size="small"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleMarkDone(appointment);
+                          }}
+                        >
+                          Mark Done
+                        </Button>
+                      </Box>
                     </Box>
                   </CardContent>
                 </Card>

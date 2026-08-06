@@ -7,6 +7,7 @@ const normalizeRole = (role) => {
 
   if (normalizedRole === "doctor") return "Doctor";
   if (normalizedRole === "patient") return "Patient";
+  if (normalizedRole === "admin") return "Admin";
 
   return "";
 };
@@ -64,16 +65,26 @@ const login = async (req, res) => {
       return res.status(400).json({ msg: "Please select a valid role" });
     }
 
-    const userExist = await User.findOne({
+// First try to match the exact role selected in the form (Patient/Doctor)
+    let userExist = await User.findOne({
       email: email?.trim().toLowerCase(),
       role: normalizedRole,
     });
+
+    // If not found, allow an admin (role "Admin" / isAdmin) to log in regardless
+    // of the form-selected role since "Admin" is hidden from the dropdown.
+    if (!userExist) {
+      userExist = await User.findOne({
+        email: email?.trim().toLowerCase(),
+        $or: [{ role: "Admin" }, { isAdmin: true }],
+      });
+    }
 
     if (!userExist) {
       return res.status(401).json({ msg: "Invalid credential" });
     }
 
-    const ispasswordvalid = await bcrypt.compare(password, userExist.password);
+const ispasswordvalid = await bcrypt.compare(password, userExist.password);
 
     if (ispasswordvalid) {
       return res.status(200).json({
@@ -81,6 +92,7 @@ const login = async (req, res) => {
         token: await userExist.generateToken(),
         userId: userExist._id.toString(),
         role: userExist.role,
+        isAdmin: userExist.isAdmin,
       });
     }
 

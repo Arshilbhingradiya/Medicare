@@ -20,9 +20,9 @@ const userSchema = new mongoose.Schema({
     require: true,
   },
 
-  role: {
+role: {
     type: String,
-    enum: ["Patient", "Doctor"],
+    enum: ["Patient", "Doctor", "Admin"],
     required: true,
   },
   isAdmin: {

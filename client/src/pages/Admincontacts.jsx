@@ -1,94 +1,240 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../store/auth";
-import "../index.css";
+import {
+  Container,
+  Paper,
+  Typography,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+Button,
+  Stack,
+  Alert,
+  Avatar,
+  CircularProgress,
+  TextField,
+  InputAdornment,
+  Tooltip,
+} from "@mui/material";
+import { Delete, Search, Mail, Refresh } from "@mui/icons-material";
 
 const Admincontacts = () => {
   const { authorizationtoken } = useAuth();
-  const [users, setusers] = useState([]);
+  const [contacts, setContacts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState("info");
+  const [deleteContact, setDeleteContact] = useState(null);
+  const [openDelete, setOpenDelete] = useState(false);
 
-  const getAllcontactData = async () => {
+  const getAllContactData = async () => {
     try {
+      setLoading(true);
       const response = await fetch("http://localhost:3000/api/admin/contacts", {
         method: "GET",
-        headers: {
-          Authorization: authorizationtoken,
-        },
+        headers: { Authorization: authorizationtoken },
       });
       const data = await response.json();
-      setusers(data);
-      console.log(`üser no data `, data);
+      setContacts(Array.isArray(data) ? data : []);
     } catch (error) {
       console.log(error);
-    }
-  };
-  const getdeleteuser = async (_id) => {
-    try {
-      console.log("arshil");
-
-      const response = await fetch(
-        `http://localhost:3000/api/admin/contacts/delete/${_id}`,
-        {
-          method: "DELETE",
-          headers: {
-            Authorization: authorizationtoken,
-          },
-        }
-      );
-      if (response.ok) {
-        console.log("my name");
-
-        getAllcontactData();
-      }
-
-      const data = await response.json();
-      console.log(data);
-      // eslint-disable-next-line no-unused-vars
-    } catch (error) {
-      /* empty */
+      setContacts([]);
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    getAllcontactData();
-  }, []); // when [] is use because only one time dependency is called not again and again
+    getAllContactData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleOpenDelete = (contact) => {
+    setDeleteContact(contact);
+    setOpenDelete(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteContact) return;
+    try {
+      const response = await fetch(
+        `http://localhost:3000/api/admin/contacts/delete/${deleteContact._id}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: authorizationtoken },
+        }
+      );
+      if (response.ok) {
+        setMessageType("success");
+        setMessage("Contact deleted successfully!");
+        setOpenDelete(false);
+        getAllContactData();
+      } else {
+        setMessageType("error");
+        setMessage("Failed to delete contact.");
+      }
+    } catch (error) {
+      console.log(error);
+      setMessageType("error");
+      setMessage("Failed to delete contact.");
+    }
+  };
+
+  const filteredContacts = contacts.filter((contact) => {
+    const q = search.toLowerCase();
+    return (
+      (contact.username || "").toLowerCase().includes(q) ||
+      (contact.email || "").toLowerCase().includes(q) ||
+      (contact.message || "").toLowerCase().includes(q)
+    );
+  });
 
   return (
-    <>
-      <section className="admin-users-section">
-        <div className="container">
-          <h1> Admin contact </h1>
-        </div>
-        <div className="container admin-users">
-          <table>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>message</th>
-                <th>Delete</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((curUser, index) => {
-                return (
-                  <tr key={index}>
-                    <td>{curUser.username}</td>
-                    <td>{curUser.email}</td>
-                    <td>{curUser.message}</td>
+    <Container maxWidth="xl" sx={{ py: 4, px: { xs: 2, md: 4 } }}>
+      <Paper
+        elevation={0}
+        sx={{
+          p: { xs: 3, md: 4 },
+          borderRadius: 4,
+          mb: 3,
+          background: "linear-gradient(135deg, #7b1fa2 0%, #9c27b0 100%)",
+          color: "white",
+        }}
+      >
+        <Typography variant="h4" sx={{ fontWeight: 800 }}>
+          Contact Messages
+        </Typography>
+        <Typography variant="body1" sx={{ opacity: 0.95, mt: 0.5 }}>
+          Messages submitted through the contact form.
+        </Typography>
+      </Paper>
 
-                    <td>
-                      <button onClick={() => getdeleteuser(curUser._id)}>
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </section>
-    </>
+      {message && (
+        <Alert severity={messageType} sx={{ mb: 3, borderRadius: 2 }} onClose={() => setMessage("")}>
+          {message}
+        </Alert>
+      )}
+
+      <Paper elevation={2} sx={{ p: 2.5, mb: 3, borderRadius: 3 }}>
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems={{ xs: "stretch", sm: "center" }}>
+          <TextField
+            label="Search contacts"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            sx={{ flex: 1 }}
+            size="small"
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Search />
+                </InputAdornment>
+              ),
+            }}
+            placeholder="Search by name, email or message"
+          />
+          <Tooltip title="Refresh">
+            <IconButton onClick={getAllContactData} color="primary">
+              <Refresh />
+            </IconButton>
+          </Tooltip>
+        </Stack>
+      </Paper>
+
+      <Paper elevation={2} sx={{ borderRadius: 3, overflow: "hidden" }}>
+        <TableContainer>
+          <Table>
+            <TableHead>
+              <TableRow sx={{ bgcolor: "#7b1fa2" }}>
+                <TableCell sx={{ color: "white", fontWeight: 700 }}>Name</TableCell>
+                <TableCell sx={{ color: "white", fontWeight: 700 }}>Email</TableCell>
+                <TableCell sx={{ color: "white", fontWeight: 700 }}>Message</TableCell>
+                <TableCell sx={{ color: "white", fontWeight: 700 }} align="center">
+                  Actions
+                </TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={4} align="center" sx={{ py: 6 }}>
+                    <CircularProgress />
+                  </TableCell>
+                </TableRow>
+              ) : filteredContacts.length > 0 ? (
+                filteredContacts.map((contact) => (
+                  <TableRow key={contact._id} hover>
+                    <TableCell>
+                      <Stack direction="row" spacing={1.5} alignItems="center">
+                        <Avatar sx={{ bgcolor: "#9c27b0", width: 40, height: 40 }}>
+                          {(contact.username || "?").charAt(0).toUpperCase()}
+                        </Avatar>
+                        <Typography variant="subtitle2" fontWeight={600}>
+                          {contact.username}
+                        </Typography>
+                      </Stack>
+                    </TableCell>
+                    <TableCell>
+                      <Stack direction="row" spacing={0.5} alignItems="center">
+                        <Mail sx={{ fontSize: 16, color: "text.secondary" }} />
+                        <Typography variant="body2">{contact.email}</Typography>
+                      </Stack>
+                    </TableCell>
+                    <TableCell sx={{ maxWidth: 300 }}>
+                      <Typography variant="body2" noWrap title={contact.message}>
+                        {contact.message}
+                      </Typography>
+                    </TableCell>
+                    <TableCell align="center">
+                      <Tooltip title="Delete contact">
+                        <IconButton color="error" onClick={() => handleOpenDelete(contact)} size="small">
+                          <Delete />
+                        </IconButton>
+                      </Tooltip>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={4} align="center" sx={{ py: 6 }}>
+                    <Typography color="text.secondary">
+                      {contacts.length === 0 ? "No contacts found." : "No contacts match your search."}
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Paper>
+
+      {/* Delete Confirmation */}
+      <Dialog open={openDelete} onClose={() => setOpenDelete(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 700, color: "error.main" }}>
+          Delete Contact
+        </DialogTitle>
+        <DialogContent>
+          <Typography>
+            Are you sure you want to delete this message from{" "}
+            <strong>{deleteContact?.username}</strong>?
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ p: 3, pt: 0 }}>
+          <Button onClick={() => setOpenDelete(false)}>Cancel</Button>
+          <Button variant="contained" color="error" onClick={handleConfirmDelete}>
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Container>
   );
 };
 

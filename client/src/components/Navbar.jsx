@@ -1,108 +1,7 @@
 /* eslint-disable react/prop-types */
 
-// import React from "react";
-// // import Link from "react-link";
-// import {
-//   AppBar,
-//   Toolbar,
-//   Typography,
-//   Button,
-//   IconButton,
-//   Menu,
-//   MenuItem,
-//   TextField,
-//   InputAdornment,
-// } from "@mui/material";
-// import {
-//   Search,
-//   AccountCircle,
-//   Notifications,
-//   Menu as MenuIcon,
-// } from "@mui/icons-material";
-
-// const Navbar = () => {
-//   const [anchorEl, setAnchorEl] = React.useState(null);
-
-//   const handleProfileMenuOpen = (event) => {
-//     setAnchorEl(event.currentTarget);
-//   };
-
-//   const handleMenuClose = () => {
-//     setAnchorEl(null);
-//   };
-
-//   return (
-//     <AppBar position="sticky" sx={{ backgroundColor: "#fff", color: "#333" }}>
-//       <Toolbar>
-//         {/* Logo */}
-//         <Typography variant="h6" sx={{ flexGrow: 1 }}>
-//           <img src="/logo.png" alt="Logo" style={{ height: "40px" }} />
-//         </Typography>
-
-//         {/* Search Bar */}
-//         <TextField
-//           variant="outlined"
-//           size="small"
-//           placeholder="Search doctors, specialties..."
-//           InputProps={{
-//             startAdornment: (
-//               <InputAdornment position="start">
-//                 <Search />
-//               </InputAdornment>
-//             ),
-//           }}
-//           sx={{ mx: 2, width: "300px" }}
-//         />
-
-//         {/* Navigation Links */}
-//         <Button color="inherit">Home</Button>
-//         <Button color="inherit">Find Doctors</Button>
-//         <Button color="inherit">Services</Button>
-//         <Button color="inherit">About</Button>
-
-//         {/* Emergency Hotline */}
-//         <Typography variant="body2" sx={{ mx: 2, color: "red" }}>
-//           Emergency: +1 800 123 4567
-//         </Typography>
-
-//         {/* Book Appointment CTA */}
-//         <Button variant="contained" color="primary" sx={{ mx: 2 }}>
-//           Book Appointment
-//         </Button>
-
-//         {/* Notifications */}
-//         <IconButton color="inherit">
-//           <Notifications />
-//         </IconButton>
-
-//         {/* Profile Dropdown */}
-//         <IconButton color="inherit" onClick={handleProfileMenuOpen}>
-//           <AccountCircle />
-//         </IconButton>
-//         <Menu
-//           anchorEl={anchorEl}
-//           open={Boolean(anchorEl)}
-//           onClose={handleMenuClose}
-//         >
-//           <MenuItem onClick={handleMenuClose}>My Appointments</MenuItem>
-//           <MenuItem onClick={handleMenuClose}>Profile</MenuItem>
-//           <MenuItem onClick={handleMenuClose}>Logout</MenuItem>
-//         </Menu>
-
-//         {/* Mobile Menu */}
-//         <IconButton
-//           color="inherit"
-//           sx={{ display: { xs: "block", md: "none" } }}
-//         >
-//           <MenuIcon />
-//         </IconButton>
-//       </Toolbar>
-//     </AppBar>
-//   );
-// };
-
 import { useAuth } from "../store/auth";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   AppBar,
   Toolbar,
@@ -115,6 +14,7 @@ import {
   Drawer,
   List,
   ListItemButton,
+  ListItemIcon,
   ListItemText,
   Divider,
   Stack,
@@ -130,12 +30,23 @@ import {
   HowToReg as SignupIcon,
   Close as CloseIcon,
   Menu as MenuIcon,
+  DashboardRounded,
+  CalendarMonthRounded,
+  PersonRounded,
+  SearchRounded,
+  GroupRounded,
+  ContactsRounded,
+LogoutRounded,
+  WorkspacePremiumRounded,
 } from "@mui/icons-material";
-import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 
-const Navbar = ({ sidebarOpen = false, onToggleSidebar = () => {}, onCloseSidebar = () => {} }) => {
-  const { isLoggedIn, user } = useAuth();
+const Navbar = ({
+  sidebarOpen = false,
+  onToggleSidebar = () => {},
+  onCloseSidebar = () => {},
+}) => {
+const { isLoggedIn, user, authorizationtoken } = useAuth();
   const navigate = useNavigate();
   const [profileImage, setProfileImage] = useState("");
   const [mobileMenuAnchor, setMobileMenuAnchor] = useState(null);
@@ -170,21 +81,27 @@ const Navbar = ({ sidebarOpen = false, onToggleSidebar = () => {}, onCloseSideba
 
       if (role === "doctor") {
         try {
-          const storedDoctor = JSON.parse(localStorage.getItem("doctorProfile") || "{}");
+          const storedDoctor = JSON.parse(
+            localStorage.getItem("doctorProfile") || "{}"
+          );
           avatar = storedDoctor.profileImage || "";
         } catch {
           avatar = "";
         }
       } else if (role === "patient") {
         try {
-          const storedPatient = JSON.parse(localStorage.getItem(`patientProfile_${user.id}`) || "{}");
+          const storedPatient = JSON.parse(
+            localStorage.getItem(`patientProfile_${user.id}`) || "{}"
+          );
           avatar = storedPatient.avatar || "";
         } catch {
           avatar = "";
         }
       } else {
         try {
-          const storedDoctor = JSON.parse(localStorage.getItem("doctorProfile") || "{}");
+          const storedDoctor = JSON.parse(
+            localStorage.getItem("doctorProfile") || "{}"
+          );
           avatar = storedDoctor.profileImage || "";
         } catch (error) {
           console.warn("Could not load doctor avatar", error);
@@ -192,7 +109,9 @@ const Navbar = ({ sidebarOpen = false, onToggleSidebar = () => {}, onCloseSideba
 
         if (!avatar) {
           try {
-            const storedPatient = JSON.parse(localStorage.getItem(`patientProfile_${user.id}`) || "{}");
+            const storedPatient = JSON.parse(
+              localStorage.getItem(`patientProfile_${user.id}`) || "{}"
+            );
             avatar = storedPatient.avatar || "";
           } catch (error) {
             console.warn("Could not load patient avatar", error);
@@ -203,40 +122,43 @@ const Navbar = ({ sidebarOpen = false, onToggleSidebar = () => {}, onCloseSideba
       setProfileImage(avatar);
     };
 
-    const updateNotifications = () => {
-      try {
-        const patientNotification = localStorage.getItem(`patientNotification_${user?.id || "guest"}`);
-        if (patientNotification) {
-          const parsed = JSON.parse(patientNotification);
-          setNotifications([parsed]);
-          return;
-        }
-      } catch {
-        // ignore and fall back
+const updateNotifications = async () => {
+      if (!user?.id || !authorizationtoken) {
+        setNotifications([]);
+        return;
       }
 
       try {
-        const stored = JSON.parse(localStorage.getItem("appointmentNotifications") || "[]");
-        const patientScoped = (Array.isArray(stored) ? stored : []).filter((item) => item.patientId === (user?.id || null));
-        if (patientScoped.length > 0) {
-          setNotifications(patientScoped.slice(0, 6));
+        const response = await fetch(
+          "http://localhost:3000/api/notifications",
+          {
+            method: "GET",
+            headers: { Authorization: authorizationtoken },
+          }
+        );
+        if (response.ok) {
+          const data = await response.json();
+          const list = Array.isArray(data) ? data : [];
+          setNotifications(list.slice(0, 6));
           return;
         }
       } catch {
-        // ignore and fall back
+        // ignore
       }
 
-      const latest = localStorage.getItem("latestAppointmentNotification");
-      if (latest) {
-        try {
-          const parsed = JSON.parse(latest);
-          setNotifications([parsed]);
-        } catch {
-          setNotifications([]);
+      // Fallback to localStorage if backend unavailable
+      try {
+        const patientKey = `patientNotifications_${user?.id || "guest"}`;
+        const stored = JSON.parse(localStorage.getItem(patientKey) || "[]");
+        if (Array.isArray(stored) && stored.length > 0) {
+          setNotifications(stored.slice(0, 6));
+          return;
         }
-      } else {
+      } catch {
         setNotifications([]);
       }
+
+      setNotifications([]);
     };
 
     loadProfileImage();
@@ -248,7 +170,7 @@ const Navbar = ({ sidebarOpen = false, onToggleSidebar = () => {}, onCloseSideba
       window.removeEventListener("profile-updated", loadProfileImage);
       window.removeEventListener("appointments-updated", updateNotifications);
     };
-  }, [user?.id, user?.role]);
+  }, [user?.id, user?.role, authorizationtoken]);
 
   const handleProfileMenuOpen = () => {
     onToggleSidebar();
@@ -258,40 +180,40 @@ const Navbar = ({ sidebarOpen = false, onToggleSidebar = () => {}, onCloseSideba
     onCloseSidebar();
   };
 
-  const normalizedRole = user?.role?.toLowerCase();
-  const isAdmin = normalizedRole === "admin" || user?.isAdmin;
+const normalizedRole = user?.role?.toLowerCase();
+  const isAdmin = user?.isAdmin || normalizedRole === "admin";
 
   const handleNavigate = (path) => {
     navigate(path);
   };
 
   const handledashboard = () => {
-    if (normalizedRole === "doctor") {
+    if (isAdmin) {
+      handleNavigate("/Admin/users");
+    } else if (normalizedRole === "doctor") {
       handleNavigate("/doctordashboard");
     } else if (normalizedRole === "patient") {
       handleNavigate("/patientdashboard");
-    } else if (isAdmin) {
-      handleNavigate("/Admin/users");
     }
   };
 
   const handleappoinment = () => {
-    if (normalizedRole === "patient") {
+    if (isAdmin) {
+      handleNavigate("/Admin/contacts");
+    } else if (normalizedRole === "patient") {
       handleNavigate("/patientappoinment");
     } else if (normalizedRole === "doctor") {
       handleNavigate("/patientrecords");
-    } else if (isAdmin) {
-      handleNavigate("/Admin/contacts");
     }
   };
 
   const handleprofile = () => {
-    if (normalizedRole === "doctor") {
+    if (isAdmin) {
+      handleNavigate("/Admin/users");
+    } else if (normalizedRole === "doctor") {
       handleNavigate("/doctorprofile");
     } else if (normalizedRole === "patient") {
       handleNavigate("/patientprofile");
-    } else if (isAdmin) {
-      handleNavigate("/Admin/users");
     }
   };
 
@@ -312,8 +234,11 @@ const Navbar = ({ sidebarOpen = false, onToggleSidebar = () => {}, onCloseSideba
   const handlesearch = () => {
     handleNavigate("/doctorsearch");
   };
-  const handleAppointmentCTA = () => {
-    if (isLoggedIn) {
+const handleAppointmentCTA = () => {
+    if (normalizedRole === "doctor") {
+      // Doctors should not book appointments; send to their dashboard
+      navigate("/doctordashboard");
+    } else if (isLoggedIn) {
       navigate("/patientappoinment");
     } else {
       navigate("/login");
@@ -339,11 +264,36 @@ const Navbar = ({ sidebarOpen = false, onToggleSidebar = () => {}, onCloseSideba
     setNotificationMenuAnchor(null);
   };
 
-  const handleNotificationDismiss = (id) => {
-    const next = notifications.filter((item) => item.id !== id);
-    localStorage.setItem("appointmentNotifications", JSON.stringify(next));
-    setNotifications(next);
-    handleNotificationClose();
+const handleNotificationRead = async (id, event) => {
+    if (event) event.stopPropagation();
+    // Optimistically mark as read in UI
+    setNotifications((prev) =>
+      prev.map((item) => (item._id === id ? { ...item, read: true } : item))
+    );
+    try {
+      await fetch(
+        `http://localhost:3000/api/notifications/${id}/read`,
+        {
+          method: "PATCH",
+          headers: { Authorization: authorizationtoken },
+        }
+      );
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleNotificationDismiss = async (id, event) => {
+    if (event) event.stopPropagation();
+    setNotifications((prev) => prev.filter((item) => item._id !== id));
+    try {
+      await fetch(`http://localhost:3000/api/notifications/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: authorizationtoken },
+      });
+    } catch {
+      // ignore
+    }
   };
 
   const handleMobileNav = (path) => {
@@ -351,22 +301,58 @@ const Navbar = ({ sidebarOpen = false, onToggleSidebar = () => {}, onCloseSideba
     navigate(path);
   };
 
+  // Reusable custom styles for Drawer List Items
+  const drawerItemStyles = {
+    borderRadius: 2,
+    mb: 1,
+    "&:hover": { bgcolor: "rgba(13, 71, 161, 0.08)" },
+  };
+
   return (
     <ThemeProvider theme={theme}>
-      <AppBar position="sticky" sx={{ bgcolor: theme.palette.primary.main, boxShadow: "0 6px 18px rgba(13,71,161,0.18)" }}>
-        <Toolbar sx={{ minHeight: { xs: 72, md: 64 }, flexWrap: { xs: "wrap", md: "nowrap" }, gap: { xs: 1, md: 0 } }}>
+<AppBar
+        position="fixed"
+        sx={{
+          bgcolor: theme.palette.primary.main,
+          boxShadow: "0 6px 18px rgba(13,71,161,0.18)",
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 1200,
+        }}
+      >
+        <Toolbar
+          sx={{
+            minHeight: { xs: 72, md: 64 },
+            flexWrap: { xs: "wrap", md: "nowrap" },
+            gap: { xs: 1, md: 0 },
+          }}
+        >
           <Typography
             type="button"
             variant="h6"
             onClick={handlemedicare}
-            sx={{ color: "#FFF", fontWeight: 700, letterSpacing: 0.5, cursor: "pointer", mr: 1 }}
+            sx={{
+              color: "#FFF",
+              fontWeight: 700,
+              letterSpacing: 0.5,
+              cursor: "pointer",
+              mr: 1,
+            }}
           >
             MediCare
           </Typography>
 
           {!isMobile && (
             <>
-              <Box sx={{ display: "flex", alignItems: "center", flexGrow: 1, justifyContent: "center" }}>
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  flexGrow: 1,
+                  justifyContent: "center",
+                }}
+              >
                 <Button sx={{ color: "#FFF" }}>
                   <Link to="/" className="nav-link text-white">
                     Home
@@ -389,34 +375,74 @@ const Navbar = ({ sidebarOpen = false, onToggleSidebar = () => {}, onCloseSideba
                 </Button>
               </Box>
 
-              <Typography variant="body2" sx={{ mx: 1, color: "#FFEB3B", display: { xs: "none", lg: "block" } }}>
+              <Typography
+                variant="body2"
+                sx={{ mx: 1, color: "#FFEB3B", display: { xs: "none", lg: "block" } }}
+              >
                 Emergency: +1 800 123 4567
               </Typography>
             </>
           )}
 
-          <Box sx={{ display: "flex", alignItems: "center", ml: "auto", gap: { xs: 0.5, md: 1 } }}>
-            <Button
-              variant="contained"
-              onClick={handleAppointmentCTA}
-              sx={{
-                bgcolor: theme.palette.secondary.main,
-                color: "#FFF",
-                minWidth: { xs: "auto", md: "auto" },
-                px: { xs: 1.2, md: 2 },
-                py: 0.8,
-                fontSize: { xs: "0.8rem", md: "0.95rem" },
-                "&:hover": { bgcolor: "#E65100" },
-              }}
-            >
-              {isMobile ? "Book" : "Book Appointment"}
-            </Button>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              ml: "auto",
+              gap: { xs: 0.5, md: 1 },
+            }}
+          >
+{isAdmin ? (
+              <IconButton
+                sx={{ color: "#FFF" }}
+                onClick={handleProfileMenuOpen}
+              >
+                <DashboardRounded />
+              </IconButton>
+            ) : normalizedRole === "doctor" ? (
+              <IconButton
+                sx={{ color: "#FFF" }}
+                onClick={handleProfileMenuOpen}
+              >
+                <DashboardRounded />
+              </IconButton>
+            ) : (
+              <Button
+                variant="contained"
+                onClick={handleAppointmentCTA}
+                sx={{
+                  bgcolor: theme.palette.secondary.main,
+                  color: "#FFF",
+                  minWidth: { xs: "auto", md: "auto" },
+                  px: { xs: 1.2, md: 2 },
+                  py: 0.8,
+                  fontSize: { xs: "0.8rem", md: "0.95rem" },
+                  "&:hover": { bgcolor: "#E65100" },
+                }}
+              >
+                {isMobile ? "Book" : "Book Appointment"}
+              </Button>
+            )}
 
             {!isMobile && (
-              <IconButton sx={{ color: "#FFF", position: "relative" }} onClick={handleNotificationOpen}>
-                <Notifications />
-                {notifications.length > 0 && (
-                  <Box component="span" sx={{ position: "absolute", top: 6, right: 6, width: 8, height: 8, bgcolor: "#ff9800", borderRadius: "50%" }} />
+              <IconButton
+                sx={{ color: "#FFF", position: "relative" }}
+                onClick={handleNotificationOpen}
+              >
+<Notifications />
+                {notifications.some((item) => !item.read) && (
+                  <Box
+                    component="span"
+                    sx={{
+                      position: "absolute",
+                      top: 6,
+                      right: 6,
+                      width: 8,
+                      height: 8,
+                      bgcolor: "#ff9800",
+                      borderRadius: "50%",
+                    }}
+                  />
                 )}
               </IconButton>
             )}
@@ -424,177 +450,344 @@ const Navbar = ({ sidebarOpen = false, onToggleSidebar = () => {}, onCloseSideba
             {isLoggedIn ? (
               <>
                 {!isMobile && (
-                  <IconButton sx={{ color: "#FFF" }} onClick={handleProfileMenuOpen}>
-                    {profileImage ? <Avatar src={profileImage} sx={{ width: 28, height: 28 }} /> : <AccountCircle />}
+                  <IconButton
+                    sx={{ color: "#FFF" }}
+                    onClick={handleProfileMenuOpen}
+                  >
+                    {profileImage ? (
+                      <Avatar src={profileImage} sx={{ width: 28, height: 28 }} />
+                    ) : (
+                      <AccountCircle />
+                    )}
                   </IconButton>
                 )}
 
                 {isMobile && (
-                  <IconButton sx={{ color: "#FFF" }} onClick={handleMobileMenuOpen}>
+                  <IconButton
+                    sx={{ color: "#FFF" }}
+                    onClick={handleMobileMenuOpen}
+                  >
                     <MenuIcon />
                   </IconButton>
                 )}
 
                 <Drawer
-                anchor="left"
-                variant={isMobile ? "temporary" : "persistent"}
-                open={sidebarOpen}
-                onClose={handleDrawerClose}
-                ModalProps={{ keepMounted: true }}
-                PaperProps={{
-                  sx: {
-                    width: { xs: "86vw", sm: 280, md: 300 },
-                    maxWidth: "100%",
-                    bgcolor: "#f8fbff",
-                    boxShadow: "-8px 0 24px rgba(13, 71, 161, 0.16)",
-                  },
-                }}
-              >
-                <Box sx={{ p: 3, height: "100%", display: "flex", flexDirection: "column" }}>
-                  <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-                    <Typography variant="h6" sx={{ color: theme.palette.primary.main, fontWeight: 700 }}>
-                      Quick Access
-                    </Typography>
-                    <IconButton onClick={handleDrawerClose} sx={{ color: theme.palette.primary.main }}>
-                      <CloseIcon />
-                    </IconButton>
-                  </Stack>
-
-                  <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
-                    <Avatar src={profileImage || undefined} sx={{ bgcolor: theme.palette.primary.main, width: 48, height: 48 }}>
-                      {!profileImage ? <AccountCircle /> : null}
-                    </Avatar>
-                    <Box>
-                      <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                        {user?.username || "User"}
-                      </Typography>
-                      <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                        {user?.role || "Member"}
-                      </Typography>
-                    </Box>
-                  </Stack>
-
-                  <Divider sx={{ mb: 2 }} />
-
-                  <List sx={{ flexGrow: 1 }}>
-                    {(normalizedRole === "doctor" || normalizedRole === "patient" || isAdmin) && (
-                      <ListItemButton onClick={handleprofile}>
-                        <ListItemText primary="Profile" />
-                      </ListItemButton>
-                    )}
-
-                    {normalizedRole === "doctor" && (
-                      <>
-                        <ListItemButton onClick={handledashboard}>
-                          <ListItemText primary="Dashboard" />
-                        </ListItemButton>
-                        <ListItemButton onClick={handleappoinment}>
-                          <ListItemText primary="Appointments" />
-                        </ListItemButton>
-                        <ListItemButton onClick={handlepatientrecords}>
-                          <ListItemText primary="Patient Records" />
-                        </ListItemButton>
-                      </>
-                    )}
-
-                    {normalizedRole === "patient" && (
-                      <>
-                        <ListItemButton onClick={handledashboard}>
-                          <ListItemText primary="Dashboard" />
-                        </ListItemButton>
-                        <ListItemButton onClick={handleappoinment}>
-                          <ListItemText primary="Appointments" />
-                        </ListItemButton>
-                        <ListItemButton onClick={handlesearch}>
-                          <ListItemText primary="Find Doctors" />
-                        </ListItemButton>
-                      </>
-                    )}
-
-                    {isAdmin && (
-                      <>
-                        <ListItemButton onClick={() => handleNavigate("/Admin/users")}>
-                          <ListItemText primary="Manage Users" />
-                        </ListItemButton>
-                        <ListItemButton onClick={() => handleNavigate("/Admin/contacts")}>
-                          <ListItemText primary="Manage Contacts" />
-                        </ListItemButton>
-                      </>
-                    )}
-                  </List>
-
-                  <Divider sx={{ my: 2 }} />
-
-                  <ListItemButton
-                    onClick={handleLogout}
+                  anchor="left"
+                  variant={isMobile ? "temporary" : "persistent"}
+                  open={sidebarOpen}
+                  onClose={handleDrawerClose}
+                  ModalProps={{ keepMounted: true }}
+                  PaperProps={{
+                    sx: {
+                      width: { xs: "86vw", sm: 280, md: 300 },
+                      maxWidth: "100%",
+                      bgcolor: "#f8fbff",
+                      boxShadow: "-8px 0 24px rgba(13, 71, 161, 0.16)",
+                    },
+                  }}
+                >
+                  <Box
                     sx={{
-                      borderRadius: 2,
-                      bgcolor: "#ffe9e9",
-                      color: "#c62828",
-                      width: "fit-content",
-                      px: 1.25,
-                      py: 0.6,
-                      mt: 0.5,
-                      minHeight: 32,
-                      alignSelf: "flex-start",
+                      height: "100%",
+                      display: "flex",
+                      flexDirection: "column",
                     }}
                   >
-                    <ListItemText primary="Logout" sx={{ m: 0, '& .MuiTypography-root': { fontSize: '0.95rem' } }} />
-                  </ListItemButton>
-                </Box>
-              </Drawer>
-            </>
-          ) : (
-            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-              <Button
-                sx={{ color: "#FFF", minWidth: { xs: "auto", md: "auto" }, px: { xs: 1, md: 1.5 } }}
-                startIcon={<LoginIcon />}
-                onClick={handleLogin}
-              >
-                {isMobile ? "" : "Login"}
-              </Button>
-              <Button
-                sx={{
-                  bgcolor: theme.palette.secondary.main,
-                  color: "#FFF",
-                  px: { xs: 1, md: 1.5 },
-                  "&:hover": { bgcolor: "#E65100" },
-                }}
-                startIcon={<SignupIcon />}
-                onClick={handleSignup}
-              >
-                {isMobile ? "" : "Sign Up"}
-              </Button>
-            </Box>
-          )}
+                    {/* --- Sidebar Header --- */}
+                    <Box sx={{ p: 3, pb: 2 }}>
+                      <Stack
+                        direction="row"
+                        justifyContent="space-between"
+                        alignItems="center"
+                      >
+                        <Typography
+                          variant="h6"
+                          sx={{
+                            color: theme.palette.primary.main,
+                            fontWeight: 700,
+                          }}
+                        >
+                          Quick Access
+                        </Typography>
+                        <IconButton
+                          onClick={handleDrawerClose}
+                          sx={{ color: theme.palette.primary.main }}
+                        >
+                          <CloseIcon />
+                        </IconButton>
+                      </Stack>
+                    </Box>
+
+                    <Divider />
+
+                    {/* --- User Profile Snippet --- */}
+                    <Box sx={{ px: 3, py: 2 }}>
+                      <Stack direction="row" spacing={2} alignItems="center">
+                        <Avatar
+                          src={profileImage || undefined}
+                          sx={{
+                            bgcolor: theme.palette.primary.main,
+                            width: 50,
+                            height: 50,
+                            boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                          }}
+                        >
+                          {!profileImage ? <AccountCircle /> : null}
+                        </Avatar>
+                        <Box>
+                          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                            {user?.username || "User"}
+                          </Typography>
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              color: "text.secondary",
+                              textTransform: "capitalize",
+                            }}
+                          >
+                            {user?.role || "Member"}
+                          </Typography>
+                        </Box>
+                      </Stack>
+                    </Box>
+
+                    <Divider />
+
+                    {/* --- Navigation Links --- */}
+                    <Box sx={{ flexGrow: 1, overflowY: "auto", px: 2, py: 2 }}>
+                      <List disablePadding>
+                        {(normalizedRole === "doctor" ||
+                          normalizedRole === "patient" ||
+                          isAdmin) && (
+                          <ListItemButton
+                            onClick={handleprofile}
+                            sx={drawerItemStyles}
+                          >
+                            <ListItemIcon sx={{ minWidth: 40 }}>
+                              <PersonRounded color="primary" />
+                            </ListItemIcon>
+                            <ListItemText primary="Profile" />
+                          </ListItemButton>
+                        )}
+
+                        {normalizedRole === "doctor" && (
+                          <>
+                            <ListItemButton
+                              onClick={handledashboard}
+                              sx={drawerItemStyles}
+                            >
+                              <ListItemIcon sx={{ minWidth: 40 }}>
+                                <DashboardRounded color="primary" />
+                              </ListItemIcon>
+                              <ListItemText primary="Dashboard" />
+                            </ListItemButton>
+                            <ListItemButton
+                              onClick={handleappoinment}
+                              sx={drawerItemStyles}
+                            >
+                              <ListItemIcon sx={{ minWidth: 40 }}>
+                                <CalendarMonthRounded color="primary" />
+                              </ListItemIcon>
+                              <ListItemText primary="Appointments" />
+                            </ListItemButton>
+<ListItemButton
+                              onClick={handlepatientrecords}
+                              sx={drawerItemStyles}
+                            >
+                              <ListItemIcon sx={{ minWidth: 40 }}>
+                                <ContactsRounded color="primary" />
+                              </ListItemIcon>
+                              <ListItemText primary="Patient Records" />
+                            </ListItemButton>
+                            <ListItemButton
+                              onClick={() => handleNavigate("/subscription")}
+                              sx={drawerItemStyles}
+                            >
+                              <ListItemIcon sx={{ minWidth: 40 }}>
+                                <WorkspacePremiumRounded color="primary" />
+                              </ListItemIcon>
+                              <ListItemText primary="Subscription Plan" />
+                            </ListItemButton>
+                          </>
+                        )}
+
+                        {normalizedRole === "patient" && (
+                          <>
+                            <ListItemButton
+                              onClick={handledashboard}
+                              sx={drawerItemStyles}
+                            >
+                              <ListItemIcon sx={{ minWidth: 40 }}>
+                                <DashboardRounded color="primary" />
+                              </ListItemIcon>
+                              <ListItemText primary="Dashboard" />
+                            </ListItemButton>
+                            <ListItemButton
+                              onClick={handleappoinment}
+                              sx={drawerItemStyles}
+                            >
+                              <ListItemIcon sx={{ minWidth: 40 }}>
+                                <CalendarMonthRounded color="primary" />
+                              </ListItemIcon>
+                              <ListItemText primary="Appointments" />
+                            </ListItemButton>
+                            <ListItemButton
+                              onClick={handlesearch}
+                              sx={drawerItemStyles}
+                            >
+                              <ListItemIcon sx={{ minWidth: 40 }}>
+                                <SearchRounded color="primary" />
+                              </ListItemIcon>
+                              <ListItemText primary="Find Doctors" />
+                            </ListItemButton>
+                          </>
+                        )}
+
+                        {isAdmin && (
+                          <>
+                            <ListItemButton
+                              onClick={() => handleNavigate("/Admin/users")}
+                              sx={drawerItemStyles}
+                            >
+                              <ListItemIcon sx={{ minWidth: 40 }}>
+                                <GroupRounded color="primary" />
+                              </ListItemIcon>
+                              <ListItemText primary="Manage Users" />
+                            </ListItemButton>
+                            <ListItemButton
+                              onClick={() => handleNavigate("/Admin/contacts")}
+                              sx={drawerItemStyles}
+                            >
+                              <ListItemIcon sx={{ minWidth: 40 }}>
+                                <ContactsRounded color="primary" />
+                              </ListItemIcon>
+                              <ListItemText primary="Manage Contacts" />
+                            </ListItemButton>
+                          </>
+                        )}
+                      </List>
+                    </Box>
+
+                    {/* --- Sticky Footer Logout --- */}
+                    <Divider />
+                    <Box sx={{ p: 2 }}>
+                      <Button
+                        fullWidth
+                        variant="contained"
+                        startIcon={<LogoutRounded />}
+                        onClick={handleLogout}
+                        sx={{
+                          bgcolor: "#ffe9e9",
+                          color: "#c62828",
+                          boxShadow: "none",
+                          textTransform: "none",
+                          fontWeight: 600,
+                          "&:hover": {
+                            bgcolor: "#ffcdd2",
+                            boxShadow: "none",
+                          },
+                        }}
+                      >
+                        Logout
+                      </Button>
+                    </Box>
+                  </Box>
+                </Drawer>
+              </>
+            ) : (
+              <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                <Button
+                  sx={{
+                    color: "#FFF",
+                    minWidth: { xs: "auto", md: "auto" },
+                    px: { xs: 1, md: 1.5 },
+                  }}
+                  startIcon={<LoginIcon />}
+                  onClick={handleLogin}
+                >
+                  {isMobile ? "" : "Login"}
+                </Button>
+                <Button
+                  sx={{
+                    bgcolor: theme.palette.secondary.main,
+                    color: "#FFF",
+                    px: { xs: 1, md: 1.5 },
+                    "&:hover": { bgcolor: "#E65100" },
+                  }}
+                  startIcon={<SignupIcon />}
+                  onClick={handleSignup}
+                >
+                  {isMobile ? "" : "Sign Up"}
+                </Button>
+              </Box>
+            )}
           </Box>
         </Toolbar>
       </AppBar>
 
-      <Menu
+<Menu
         anchorEl={notificationMenuAnchor}
         open={Boolean(notificationMenuAnchor)}
         onClose={handleNotificationClose}
         transformOrigin={{ horizontal: "right", vertical: "top" }}
         anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
       >
-        {notifications.length > 0 ? (
-          notifications.map((item) => (
-            <MenuItem
-              key={item.id}
-              onClick={() => handleNotificationDismiss(item.id)}
-              sx={{ minWidth: 240, display: "block" }}
-            >
-              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                Booking confirmed
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {item.doctor} • {item.date} • {item.time}
-              </Typography>
-            </MenuItem>
-          ))
+{notifications.length > 0 ? (
+          notifications.map((item) => {
+            const id = item._id || item.id;
+            const title = item.title || "Notification";
+            const message = item.message || "";
+            const meta = item.meta || {};
+            const isRead = !!item.read;
+            return (
+              <MenuItem
+                key={id}
+                onClick={(e) => handleNotificationRead(id, e)}
+                sx={{
+                  minWidth: 300,
+                  display: "block",
+                  bgcolor: isRead ? "transparent" : "rgba(13,71,161,0.06)",
+                }}
+              >
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <Typography
+                    variant="subtitle2"
+                    sx={{ fontWeight: isRead ? 500 : 700 }}
+                  >
+                    {title}
+                  </Typography>
+                  {!isRead && (
+                    <Box
+                      sx={{
+                        width: 8,
+                        height: 8,
+                        bgcolor: "#ff9800",
+                        borderRadius: "50%",
+                      }}
+                    />
+                  )}
+                </Stack>
+                <Typography variant="body2" color="text.secondary">
+                  {message}
+                </Typography>
+                {meta.doctorName && (
+                  <Typography variant="caption" color="text.secondary">
+                    {meta.doctorName} • {meta.date || ""} • {meta.time || ""}
+                  </Typography>
+                )}
+                <Button
+                  size="small"
+                  color={isRead ? "default" : "primary"}
+                  onClick={(e) => handleNotificationDismiss(id, e)}
+                  sx={{ textTransform: "none", mt: 0.5 }}
+                >
+                  {isRead ? "Remove" : "Mark as read & remove"}
+                </Button>
+              </MenuItem>
+            );
+          })
         ) : (
-          <MenuItem disabled>No new appointments yet</MenuItem>
+          <MenuItem disabled>No notifications yet</MenuItem>
         )}
       </Menu>
 
@@ -604,7 +797,9 @@ const Navbar = ({ sidebarOpen = false, onToggleSidebar = () => {}, onCloseSideba
         onClose={handleMobileMenuClose}
       >
         <MenuItem onClick={() => handleMobileNav("/")}>Home</MenuItem>
-        <MenuItem onClick={() => handleMobileNav("/doctorsearch")}>Find Doctors</MenuItem>
+        <MenuItem onClick={() => handleMobileNav("/doctorsearch")}>
+          Find Doctors
+        </MenuItem>
         <MenuItem onClick={() => handleMobileNav("/about")}>About</MenuItem>
         <MenuItem onClick={() => handleMobileNav("/contact")}>Contact</MenuItem>
         {isLoggedIn && (

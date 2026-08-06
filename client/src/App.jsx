@@ -1,7 +1,7 @@
 import "../node_modules/bootstrap/dist/css/bootstrap.min.css";
 
 import { BrowserRouter, Route, Routes } from "react-router-dom";
-import { Box, useMediaQuery, useTheme } from "@mui/material";
+import { Box } from "@mui/material";
 import Home from "./pages/home";
 import Signup from "./pages/signup";
 import Login from "./pages/login";
@@ -11,6 +11,7 @@ import About from "./pages/About";
 import Navbar from "./components/Navbar";
 import { Logout } from "./pages/logout";
 import Adminlayout from "./components/layouts/Admin-layout";
+import AdminDashboard from "./pages/AdminDashboard";
 import Adminusers from "./pages/Adminusers";
 import Admincontacts from "./pages/Admincontacts";
 
@@ -20,6 +21,8 @@ import Patientappoinment from "./components/Patient/Patientappoinment";
 import DoctorProfile from "./components/Doctor/Doctorprofile";
 import Registerprofile from "./components/Doctor/Registerprofile";
 import Doctordashboard from "./components/Doctor/Doctordashboard";
+import SubscriptionPlan from "./components/Doctor/SubscriptionPlan";
+import Adminsubscriptions from "./pages/Adminsubscriptions";
 // import DoctorAppoinments from "./components/Doctor/DoctorAppoinment";
 import PatientRecords from "./components/Doctor/Patientrecords";
 import PatientFilePage from "./components/Doctor/PatientFilePage";
@@ -29,8 +32,6 @@ import { useState } from "react";
 // import Adminverification from "./pages/Adminverfication";
 
 function App() {
-  const theme = useTheme();
-  const isDesktop = useMediaQuery(theme.breakpoints.up("md"));
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const handleOpenSidebar = () => setSidebarOpen(true);
@@ -38,7 +39,7 @@ function App() {
   const handleToggleSidebar = () => setSidebarOpen((prev) => !prev);
 
   return (
-    <div style={{ overflowX: "hidden", width: "100%", maxWidth: "100vw", minHeight: "100vh" }}>
+<div style={{ width: "100%", maxWidth: "100vw", minHeight: "100vh" }}>
       <BrowserRouter>
         <Navbar
           sidebarOpen={sidebarOpen}
@@ -52,8 +53,8 @@ function App() {
             transition: "margin-left 0.3s ease, width 0.3s ease",
             width: sidebarOpen ? { xs: "100%", md: "calc(100% - 280px)" } : "100%",
             minHeight: "100vh",
-            overflowX: "hidden",
             boxSizing: "border-box",
+            paddingTop: { xs: "72px", md: "64px" },
           }}
         >
           <Routes>
@@ -95,7 +96,7 @@ function App() {
               }
             ></Route>
 
-            <Route path="/verifydoctor" element={<Registerprofile />}></Route>
+<Route path="/verifydoctor" element={<Registerprofile />}></Route>
             <Route
               path="/doctorprofile"
               element={
@@ -109,6 +110,14 @@ function App() {
               element={
                 <PrivateRoute>
                   <Doctordashboard />
+                </PrivateRoute>
+              }
+            ></Route>
+            <Route
+              path="/subscription"
+              element={
+                <PrivateRoute>
+                  <SubscriptionPlan />
                 </PrivateRoute>
               }
             ></Route>
@@ -126,11 +135,12 @@ function App() {
               }
             ></Route>
 
-            {/* admin  */}
-            <Route path="/admin" element={<Adminlayout />}></Route>
-            <Route path="/Admin" element={<Adminlayout />}>
+{/* admin  */}
+<Route path="/Admin" element={<Adminlayout />}>
+              <Route index element={<AdminDashboard />} />
               <Route path="users" element={<Adminusers />} />
               <Route path="contacts" element={<Admincontacts />} />
+              <Route path="subscriptions" element={<Adminsubscriptions />} />
               {/* <Route path="status" element={<Adminverification />} /> */}
             </Route>
           </Routes>

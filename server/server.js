@@ -15,7 +15,9 @@ const servicerouter = require("./router/service-router");
 const adminrouter = require("./router/admin-router");
 const patientrouter = require("./router/patient-router");
 const doctorrouter = require("./router/doctor-router");
+const notificationrouter = require("./router/notification-router");
 const googleAuthRoutes = require("./router/google-auth.js");
+const razorpayController = require("./controllers/razorpay-controller");
 app.use(session({ secret: "secret", resave: false, saveUninitialized: true }));
 
 app.use(passport.initialize());
@@ -25,13 +27,28 @@ const connectdb = require("./db");
 // cors
 
 const corsoption = {
-  origin: "http://localhost:5173",
+  origin: "https://docify-liard-gamma.vercel.app",
   method: "GET,POST,DELETE,PUT,PATCH",
   credentials: true,
 };
 
 // middleware all thingd a in all crud operation
 app.use(cors(corsoption));
+
+// Razorpay webhook needs raw body - register before express.json()
+app.post(
+  "/api/doctorform/subscription/webhook",
+  express.raw({ type: "application/json" }),
+  (req, res) => {
+    req.rawBody = req.body;
+    try {
+      req.body = JSON.parse(req.body.toString());
+    } catch {
+      // leave as-is
+    }
+    razorpayController.razorpayWebhook(req, res);
+  }
+);
 
 //middleware
 app.use(express.json());
@@ -47,6 +64,9 @@ app.use("/api/patientform", patientrouter);
 
 // Doctor panel
 app.use("/api/doctorform", doctorrouter);
+
+// Notification panel
+app.use("/api/notifications", notificationrouter);
 
 app.use(
   cors({
@@ -97,6 +117,11 @@ app.use(googleAuthRoutes);
 // })
 
 connectdb();
+
+// Periodic renewal reminder job (every 6 hours)
+setInterval(() => {
+  razorpayController.sendRenewalReminders();
+}, 6 * 60 * 60 * 1000);
 
 app.listen(3000, () => {
   console.log(`server is running on 3000`);

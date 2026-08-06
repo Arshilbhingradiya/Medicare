@@ -1,6 +1,31 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../store/auth";
+import {
+  Container,
+  TextField,
+  Button,
+  Typography,
+  Paper,
+  Box,
+  Stack,
+  Divider,
+  InputAdornment,
+  IconButton,
+  Alert,
+} from "@mui/material";
+import {
+  Email,
+  Lock,
+  Visibility,
+  VisibilityOff,
+  Person,
+  LocalHospital,
+  Phone,
+  Badge,
+  Google,
+} from "@mui/icons-material";
+import { motion } from "framer-motion";
 import "./css/signup.css";
 
 export default function Signup() {
@@ -11,29 +36,29 @@ export default function Signup() {
     password: "",
     role: "",
   });
-
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState("");
   const navigate = useNavigate();
+
   const handleGooglesignup = () => {
     window.open("http://localhost:3000/auth/google", "_self");
   };
   const { storeTokenInLS } = useAuth();
 
   const handleInput = (e) => {
-    // console.log(e);
-
     const name = e.target.name;
     const value = e.target.value;
-
     setuser({ ...user, [name]: value });
   };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError("");
     if (!user.role) {
-      alert("Please select a role: Patient or Doctor");
+      setError("Please select a role: Patient or Doctor");
       return;
     }
 
-    console.log(user);
     try {
       const response = await fetch("http://localhost:3000/api/auth/register", {
         method: "POST",
@@ -43,13 +68,10 @@ export default function Signup() {
         body: JSON.stringify(user),
       });
       const res_data = await response.json();
-      console.log("res from server", res_data);
 
       if (response.ok) {
         storeTokenInLS(res_data.token);
-
         navigate(user.role === "Doctor" ? "/doctordashboard" : "/patientdashboard");
-
         setuser({
           username: "",
           email: "",
@@ -58,146 +80,275 @@ export default function Signup() {
           role: "",
         });
       } else {
-        alert(res_data?.msg || "Invalid registration data");
+        setError(res_data?.msg || "Invalid registration data");
       }
-      console.log("myname", response);
     } catch (error) {
       console.log("register", error);
+      setError("Failed to connect to server.");
     }
   };
 
   return (
-    <>
-      <section>
-        <main>
-          <div className="section-registration">
-            <div className="container grid grid-two-cols">
-              <div className="registration-form">
-                <h1 className="main-heading mb-3">Registration Form</h1>
-                <br />
+    <Box
+      sx={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "linear-gradient(135deg, #0A3D8F 0%, #1976d2 50%, #42a5f5 100%)",
+        position: "relative",
+        overflow: "hidden",
+        py: 4,
+      }}
+    >
+      {[
+        { color: "rgba(255,255,255,0.08)", top: "5%", left: "8%", size: 260 },
+        { color: "rgba(255,235,59,0.12)", top: "70%", left: "75%", size: 300 },
+        { color: "rgba(255,255,255,0.06)", top: "20%", left: "70%", size: 180 },
+      ].map((blob, i) => (
+        <motion.div
+          key={i}
+          animate={{ y: [0, -30, 0], rotate: [0, 20, 0] }}
+          transition={{ duration: 7 + i, repeat: Infinity, ease: "easeInOut" }}
+          style={{
+            position: "absolute",
+            top: blob.top,
+            left: blob.left,
+            width: blob.size,
+            height: blob.size,
+            borderRadius: "50%",
+            background: blob.color,
+            filter: "blur(10px)",
+            zIndex: 0,
+          }}
+        />
+      ))}
 
-                <form onSubmit={handleSubmit}>
-                  <div>
-                    <label htmlFor="username">username</label>
-                    <input
-                      type="text"
-                      name="username"
-                      placeholder="username"
-                      id="username"
-                      value={user.username}
-                      onChange={handleInput}
-                      required
-                      autoComplete="off"
-                    ></input>
-                  </div>
-                  <div>
-                    <label htmlFor="username">email</label>
-                    <input
-                      type="email"
-                      name="email"
-                      placeholder="email"
-                      id="email"
-                      value={user.email}
-                      onChange={handleInput}
-                      required
-                      autoComplete="off"
-                    ></input>
-                  </div>
-                  <div>
-                    <label htmlFor="username">phone no.</label>
-                    <input
-                      type="tel"
-                      name="phone"
-                      placeholder="phone"
-                      id="phone"
-                      value={user.phone}
-                      onChange={handleInput}
-                      required
-                      autoComplete="off"
-                    ></input>
-                  </div>
-                  <div>
-                    <label htmlFor="username">password</label>
-                    <input
-                      type="password"
-                      name="password"
-                      placeholder="password"
-                      id="password"
-                      value={user.password}
-                      onChange={handleInput}
-                      required
-                      autoComplete="off"
-                    ></input>
-                  </div>
+      <Container maxWidth="sm" sx={{ position: "relative", zIndex: 1 }}>
+        <motion.div
+          initial={{ opacity: 0, y: 40 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.7 }}
+        >
+          <Paper
+            elevation={0}
+            sx={{
+              p: { xs: 3, md: 4 },
+              borderRadius: 5,
+              background: "rgba(255,255,255,0.96)",
+              boxShadow: "0 30px 60px rgba(0,0,0,0.25)",
+              backdropFilter: "blur(10px)",
+            }}
+          >
+            <Stack spacing={2} alignItems="center" sx={{ mb: 3 }}>
+              <motion.div
+                animate={{ rotate: [0, 8, 0] }}
+                transition={{ duration: 2, repeat: Infinity }}
+              >
+                <Box
+                  sx={{
+                    width: 65,
+                    height: 65,
+                    borderRadius: 3,
+                    bgcolor: "#0D47A1",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "white",
+                    boxShadow: "0 10px 25px rgba(13,71,161,0.4)",
+                  }}
+                >
+                  <LocalHospital sx={{ fontSize: 36 }} />
+                </Box>
+              </motion.div>
+              <Box textAlign="center">
+                <Typography variant="h4" sx={{ fontWeight: 800, color: "#0D47A1" }}>
+                  Create Account
+                </Typography>
+                <Typography variant="body1" color="text.secondary">
+                  Join MediCare today
+                </Typography>
+              </Box>
+            </Stack>
 
-                  <label>Role</label>
-                  <div className="role-selection">
-                    <div
-                      className="role-option"
-                      onClick={() => setuser({ ...user, role: "Patient" })}
-                      style={{
-                        border:
-                          user.role === "Patient"
-                            ? "2px solid #007bff"
-                            : "2px solid #ccc",
-                        padding: "10px",
-                        borderRadius: "8px",
-                        cursor: "pointer",
-                        display: "inline-block",
-                        marginRight: "10px",
-                      }}
-                    >
-                      👤 Patient
-                    </div>
-                    <div
-                      className="role-option"
-                      onClick={() => setuser({ ...user, role: "Doctor" })}
-                      style={{
-                        border:
-                          user.role === "Doctor"
-                            ? "2px solid #007bff"
-                            : "2px solid #ccc",
-                        padding: "10px",
-                        borderRadius: "8px",
-                        cursor: "pointer",
-                        display: "inline-block",
-                      }}
-                    >
-                      🏢 Doctor
-                    </div>
-                  </div>
-                  <div>
-                    <button type="submit">
-                      submit
-                    </button>
-                  </div>
-                  <div
-                    className="google-login"
-                    style={{ marginTop: "20px", textAlign: "center" }}
+            {error && (
+              <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
+                {error}
+              </Alert>
+            )}
+
+            <form onSubmit={handleSubmit}>
+              <TextField
+                fullWidth
+                label="Username"
+                name="username"
+                placeholder="Enter your username"
+                value={user.username}
+                onChange={handleInput}
+                required
+                margin="normal"
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Badge color="primary" />
+                    </InputAdornment>
+                  ),
+                }}
+              />
+              <TextField
+                fullWidth
+                label="Email"
+                name="email"
+                type="email"
+                placeholder="Enter your email"
+                value={user.email}
+                onChange={handleInput}
+                required
+                margin="normal"
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Email color="primary" />
+                    </InputAdornment>
+                  ),
+                }}
+              />
+              <TextField
+                fullWidth
+                label="Phone Number"
+                name="phone"
+                type="tel"
+                placeholder="Enter your phone"
+                value={user.phone}
+                onChange={handleInput}
+                required
+                margin="normal"
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Phone color="primary" />
+                    </InputAdornment>
+                  ),
+                }}
+              />
+              <TextField
+                fullWidth
+                label="Password"
+                name="password"
+                type={showPassword ? "text" : "password"}
+                placeholder="Create a password"
+                value={user.password}
+                onChange={handleInput}
+                required
+                margin="normal"
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <Lock color="primary" />
+                    </InputAdornment>
+                  ),
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton onClick={() => setShowPassword((s) => !s)} edge="end">
+                        {showPassword ? <VisibilityOff /> : <Visibility />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
+              />
+
+              <Typography variant="subtitle2" sx={{ mt: 2, mb: 1, fontWeight: 700 }}>
+                Select Role
+              </Typography>
+              <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
+                {[
+                  { key: "Patient", label: "Patient", icon: <Person /> },
+                  { key: "Doctor", label: "Doctor", icon: <LocalHospital /> },
+                ].map((r) => (
+                  <motion.div
+                    key={r.key}
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
+                    style={{ flex: 1 }}
                   >
-                    <button
-                      type="button"
-                      className="google-btn"
-                      onClick={handleGooglesignup}
-                      style={{
-                        backgroundColor: "#4285F4",
-                        color: "white",
-                        padding: "10px 20px",
-                        border: "none",
-                        borderRadius: "4px",
+                    <Box
+                      onClick={() => setuser({ ...user, role: r.key })}
+                      sx={{
+                        border: user.role === r.key ? "2px solid #0D47A1" : "2px solid #e0e0e0",
+                        padding: "12px",
+                        borderRadius: 3,
                         cursor: "pointer",
-                        fontSize: "16px",
+                        textAlign: "center",
+                        bgcolor: user.role === r.key ? "rgba(13,71,161,0.08)" : "transparent",
+                        transition: "all 0.2s ease",
                       }}
                     >
-                      🔑 Sign up with Google
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          </div>
-        </main>
-      </section>
-    </>
+                      <Box sx={{ color: user.role === r.key ? "#0D47A1" : "text.secondary" }}>
+                        {r.icon}
+                      </Box>
+                      <Typography
+                        variant="body2"
+                        fontWeight={700}
+                        color={user.role === r.key ? "primary" : "text.secondary"}
+                      >
+                        {r.label}
+                      </Typography>
+                    </Box>
+                  </motion.div>
+                ))}
+              </Stack>
+
+              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                <Button
+                  type="submit"
+                  fullWidth
+                  variant="contained"
+                  size="large"
+                  sx={{
+                    py: 1.4,
+                    fontWeight: 800,
+                    borderRadius: 3,
+                    background: "linear-gradient(135deg, #0D47A1 0%, #1976d2 100%)",
+                    boxShadow: "0 10px 25px rgba(25,118,210,0.35)",
+                    "&:hover": { background: "linear-gradient(135deg, #08306b 0%, #1565c0 100%)" },
+                  }}
+                >
+                  Create Account
+                </Button>
+              </motion.div>
+            </form>
+
+            <Divider sx={{ my: 3 }}>or</Divider>
+
+            <Button
+              fullWidth
+              variant="outlined"
+              size="large"
+              startIcon={<Google />}
+              onClick={handleGooglesignup}
+              sx={{
+                py: 1.3,
+                borderRadius: 3,
+                borderColor: "#4285F4",
+                color: "#4285F4",
+                fontWeight: 700,
+                "&:hover": { bgcolor: "rgba(66,133,244,0.08)", borderColor: "#4285F4" },
+              }}
+            >
+              Sign up with Google
+            </Button>
+
+            <Stack direction="row" spacing={0.5} justifyContent="center" sx={{ mt: 3 }}>
+              <Typography variant="body2" color="text.secondary">
+                Already have an account?
+              </Typography>
+              <Link to="/login" style={{ color: "#0D47A1", fontWeight: 700, textDecoration: "none" }}>
+                Sign In
+              </Link>
+            </Stack>
+          </Paper>
+        </motion.div>
+      </Container>
+    </Box>
   );
 }

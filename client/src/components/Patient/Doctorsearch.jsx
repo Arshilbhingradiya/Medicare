@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Container,
   TextField,
@@ -19,42 +19,48 @@ import {
 } from "@mui/material";
 import { Star } from "@mui/icons-material";
 
-const doctors = [
-  {
-    id: 1,
-    name: "Dr. Emily Smith",
-    city: "Delhi",
-    specialization: "Cardiologist",
-    rating: 4.8,
-  },
-  {
-    id: 2,
-    name: "Dr. John Doe",
-    city: "Mumbai",
-    specialization: "Dermatologist",
-    rating: 4.6,
-  },
-  {
-    id: 3,
-    name: "Dr. Sarah Lee",
-    city: "Delhi",
-    specialization: "Neurologist",
-    rating: 4.9,
-  },
-  {
-    id: 4,
-    name: "Dr. Michael Brown",
-    city: "Bangalore",
-    specialization: "Pediatrician",
-    rating: 4.5,
-  },
-];
-
 const DoctorSearch = () => {
+  const [doctors, setDoctors] = useState([]);
   const [selectedCity, setSelectedCity] = useState("");
   const [selectedSpecialization, setSelectedSpecialization] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedDoctor, setSelectedDoctor] = useState(null);
+
+  useEffect(() => {
+    const fetchDoctors = async () => {
+      try {
+        const response = await fetch("http://localhost:3000/api/doctorform/doctors");
+        if (response.ok) {
+          const data = await response.json();
+const mapped = (Array.isArray(data) ? data : data.doctors || []).map((doc) => {
+            const rawName = doc.name || doc.username || "Unknown Doctor";
+            // If the stored name is just the generic word "doctor", use the full user name instead
+            const fullName =
+              /^doctor$/i.test(rawName.trim()) && doc.fullName
+                ? doc.fullName
+                : rawName;
+            return {
+              id: doc._id,
+              name: fullName,
+              city: doc.city || "Unknown",
+              specialization: doc.specialization || "General Physician",
+              rating: 4.5,
+              yearsOfExperience: doc.yearsOfExperience,
+              clinicAddress: doc.clinicAddress,
+              phone: doc.phone,
+              qualifications: doc.qualifications,
+              bio: doc.bio,
+            };
+          });
+          setDoctors(mapped);
+        }
+      } catch (error) {
+        console.error("Failed to fetch doctors:", error);
+      }
+    };
+
+    fetchDoctors();
+  }, []);
 
   const filteredDoctors = doctors.filter((doctor) => {
     return (
@@ -163,15 +169,17 @@ const DoctorSearch = () => {
                   <Typography>
                     <strong>Rating:</strong> {selectedDoctor.rating} ⭐
                   </Typography>
-                  <Typography>
-                    <strong>Experience:</strong> 10+ years
+<Typography>
+                    <strong>Experience:</strong> {selectedDoctor.yearsOfExperience || "N/A"} years
                   </Typography>
                   <Typography>
-                    <strong>Clinic Address:</strong> XYZ Street,{" "}
-                    {selectedDoctor.city}
+                    <strong>Clinic Address:</strong> {selectedDoctor.clinicAddress || "N/A"}
                   </Typography>
                   <Typography>
-                    <strong>Contact:</strong> +91 98765 43210
+                    <strong>Qualifications:</strong> {selectedDoctor.qualifications || "N/A"}
+                  </Typography>
+                  <Typography>
+                    <strong>Contact:</strong> {selectedDoctor.phone || "N/A"}
                   </Typography>
                 </Grid>
               </Grid>
