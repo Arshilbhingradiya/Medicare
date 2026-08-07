@@ -1,38 +1,24 @@
-# Implementation Plan
+# TODO: Replace hardcoded localhost URLs with env variables (CLIENT_URL / SERVER_URL)
 
-## Task 1: Doctor full name in search page headline
-- [x] Update `server/controllers/doctor-controller.js` to populate doctor name from linked User
-- [x] Update `client/src/components/Patient/Doctorsearch.jsx` for clean full-name headline
+## Steps
+- [ ] 1. Create `client/src/config.js` (API_URL, CLIENT_URL exports)
+- [ ] 2. Create `client/.env` (VITE_SERVER_URL, VITE_CLIENT_URL)
+- [ ] 3. Update `server/server.js` (CORS origins + Google OAuth callbackURL)
+- [ ] 4. Update `client/src/store/auth.jsx`
+- [ ] 5. Update `client/src/pages/login.jsx`
+- [ ] 6. Update `client/src/pages/signup.jsx`
+- [ ] 7. Update `client/src/pages/contact.jsx`
+- [ ] 8. Update `client/src/pages/Adminusers.jsx`
+- [ ] 9. Update `client/src/pages/Admincontacts.jsx`
+- [ ] 10. Update `client/src/pages/AdminDashboard.jsx`
+- [ ] 11. Update `client/src/pages/Adminsubscriptions.jsx`
+- [ ] 12. Update `client/src/pages/Adminverfication.jsx`
+- [ ] 13. Update `client/src/components/Navbar.jsx`
+- [ ] 14. Update `client/src/components/Doctor/Doctordashboard.jsx`
+- [ ] 15. Update `client/src/components/Doctor/Doctorprofile.jsx`
+- [ ] 16. Update `client/src/components/Doctor/SubscriptionPlan.jsx`
+- [ ] 17. Update `client/src/components/Patient/Doctorsearch.jsx`
+- [ ] 18. Update `client/src/components/Patient/Patientappoinment.jsx`
+- [ ] 19. Update `client/src/components/Patient/Patientprofile.jsx`
+- [ ] 20. Verify no remaining hardcoded localhost in client/src and server (excluding node_modules)
 
-## Task 2: Doctor dashboard horizontal cards (one per row)
-- [x] Update `client/src/components/Doctor/Doctordashboard.jsx` to full-width horizontal cards
-
-## Task 3: Animated Home & About pages
-- [ ] Update `client/src/pages/home.jsx` with richer animations
-- [ ] Update `client/src/pages/About.jsx` with richer animations
-
-## Task 4: Professional animated Login & Signup
-- [ ] Update `client/src/pages/login.jsx` redesign
-- [ ] Update `client/src/pages/signup.jsx` redesign
-- [ ] Update `client/src/pages/css/login.css`
-- [ ] Update `client/src/pages/css/signup.css`
-
-## Task 5: Hide Book Appointment for admin
-- [ ] Update `client/src/components/Navbar.jsx` to hide Book Appointment for admin
-- [ ] Update `client/src/pages/home.jsx` & `About.jsx` to hide Book CTA for admin
-
-## Task 6: Admin always has a role, no patient/doctor rights
-- [ ] Update `client/src/components/Navbar.jsx` to prioritize admin role
-- [ ] Update `client/src/App.jsx` / `PrivateRoute.jsx` for admin routing
-
-## Task 7: Admin view all users, contacts, premium subscriptions
-- [ ] Verify existing Admin pages (users, contacts, subscriptions)
-
-## Task 8: Analytics - subscribed doctors with city filter
-- [ ] Update `client/src/pages/AdminDashboard.jsx` with city-wise subscribed doctor analytics
-
-## Task 9: Revenue dashboard (monthly/yearly subscription revenue)
-- [ ] Update `client/src/pages/AdminDashboard.jsx` with revenue breakdown
-
-## Followup
-- [ ] Start both servers and verify all pages

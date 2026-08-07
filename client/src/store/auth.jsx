@@ -1,4 +1,5 @@
 import { useState, createContext, useContext, useEffect } from "react";
+import { API_URL } from "../config";
 
 export const AuthContext = createContext();
 
@@ -35,7 +36,7 @@ const AuthProvider = ({ children }) => {
 
     try {
       setIsLoading(true);
-      const response = await fetch("http://localhost:3000/api/auth/user", {
+      const response = await fetch(`${API_URL}/api/auth/user`, {
         method: "GET",
         headers: {
           Authorization: authorizationtoken,
@@ -55,7 +56,7 @@ const AuthProvider = ({ children }) => {
     }
   };
   const getservice = async () => {
-    const response = await fetch("http://localhost:3000/api/data/service", {
+    const response = await fetch(`${API_URL}/api/data/service`, {
       method: "GET",
     });
 

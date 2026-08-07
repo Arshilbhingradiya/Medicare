@@ -27,7 +27,7 @@ const connectdb = require("./db");
 // cors
 
 const corsoption = {
-  origin: "https://docify-liard-gamma.vercel.app",
+  origin: process.env.CLIENT_URL,
   method: "GET,POST,DELETE,PUT,PATCH",
   credentials: true,
 };
@@ -70,7 +70,7 @@ app.use("/api/notifications", notificationrouter);
 
 app.use(
   cors({
-    origin: "https://docify-liard-gamma.vercel.app", // Your frontend URL
+    origin: process.env.CLIENT_URL, // Your frontend URL
     credentials: true,
   })
 );
@@ -94,7 +94,7 @@ passport.use(
     {
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL: "https://medicare-0wpo.onrender.com/auth/google/callback",
+      callbackURL: `${process.env.SERVER_URL}/auth/google/callback`,
     },
     (accessToken, refreshToken, profile, done) => {
       console.log("Google profile:", profile);

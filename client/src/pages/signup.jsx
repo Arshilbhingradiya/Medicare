@@ -26,6 +26,7 @@ import {
   Google,
 } from "@mui/icons-material";
 import { motion } from "framer-motion";
+import { API_URL } from "../config";
 import "./css/signup.css";
 
 export default function Signup() {
@@ -41,7 +42,7 @@ export default function Signup() {
   const navigate = useNavigate();
 
   const handleGooglesignup = () => {
-    window.open("http://localhost:3000/auth/google", "_self");
+    window.open(`${API_URL}/auth/google`, "_self");
   };
   const { storeTokenInLS } = useAuth();
 
@@ -60,7 +61,7 @@ export default function Signup() {
     }
 
     try {
-      const response = await fetch("http://localhost:3000/api/auth/register", {
+      const response = await fetch(`${API_URL}/api/auth/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

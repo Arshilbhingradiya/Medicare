@@ -41,6 +41,7 @@ import {
   Shield,
 } from "@mui/icons-material";
 import { useAuth } from "../../store/auth";
+import { API_URL } from "../../config";
 
 const SubscriptionPlan = () => {
   const { authorizationtoken } = useAuth();
@@ -71,7 +72,7 @@ const SubscriptionPlan = () => {
   const fetchPlans = async () => {
     try {
       const response = await fetch(
-        "http://localhost:3000/api/doctorform/plans",
+        `${API_URL}/api/doctorform/plans`,
         { method: "GET" }
       );
       if (response.ok) {
@@ -86,7 +87,7 @@ const SubscriptionPlan = () => {
   const fetchMySubscription = async () => {
     try {
       const response = await fetch(
-        "http://localhost:3000/api/doctorform/subscription/mine",
+        `${API_URL}/api/doctorform/subscription/mine`,
         {
           method: "GET",
           headers: { Authorization: authorizationtoken },
@@ -104,7 +105,7 @@ const SubscriptionPlan = () => {
   const fetchSubscriptionStatus = async () => {
     try {
       const response = await fetch(
-        "http://localhost:3000/api/doctorform/subscription/status",
+        `${API_URL}/api/doctorform/subscription/status`,
         {
           method: "GET",
           headers: { Authorization: authorizationtoken },
@@ -128,7 +129,7 @@ const SubscriptionPlan = () => {
     setMessage("");
     try {
       const response = await fetch(
-        "http://localhost:3000/api/doctorform/subscription/trial",
+        `${API_URL}/api/doctorform/subscription/trial`,
         {
           method: "POST",
           headers: {
@@ -203,7 +204,7 @@ const SubscriptionPlan = () => {
 
       // Simulated success - activate subscription directly via enroll endpoint
       const response = await fetch(
-        "http://localhost:3000/api/doctorform/subscription/enroll",
+        `${API_URL}/api/doctorform/subscription/enroll`,
         {
           method: "POST",
           headers: {

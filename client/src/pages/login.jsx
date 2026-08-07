@@ -24,7 +24,9 @@ import {
   Google,
 } from "@mui/icons-material";
 import { motion } from "framer-motion";
+import { API_URL } from "../config";
 import "./css/login.css";
+
 
 export default function Login() {
   const { storeTokenInLS } = useAuth();
@@ -38,7 +40,7 @@ export default function Login() {
   const navigate = useNavigate();
 
   const handleGoogleLogin = () => {
-    window.open("http://localhost:3000/auth/google", "_self");
+    window.open(`${API_URL}/auth/google`, "_self");
   };
 
   const handleInput = (e) => {
@@ -56,7 +58,7 @@ export default function Login() {
     }
 
     try {
-      const response = await fetch("http://localhost:3000/api/auth/login", {
+      const response = await fetch(`${API_URL}/api/auth/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../store/auth";
+import { API_URL } from "../config";
 import {
   Container,
   Paper,
@@ -67,16 +68,16 @@ const AdminDashboard = () => {
     const fetchData = async () => {
       try {
         const [usersRes, contactsRes, subsRes, analyticsRes] = await Promise.all([
-          fetch("http://localhost:3000/api/admin/users", {
+          fetch(`${API_URL}/api/admin/users`, {
             headers: { Authorization: authorizationtoken },
           }),
-          fetch("http://localhost:3000/api/admin/contacts", {
+          fetch(`${API_URL}/api/admin/contacts`, {
             headers: { Authorization: authorizationtoken },
           }),
-          fetch("http://localhost:3000/api/admin/subscriptions", {
+          fetch(`${API_URL}/api/admin/subscriptions`, {
             headers: { Authorization: authorizationtoken },
           }),
-          fetch("http://localhost:3000/api/admin/analytics", {
+          fetch(`${API_URL}/api/admin/analytics`, {
             headers: { Authorization: authorizationtoken },
           }),
         ]);

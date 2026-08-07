@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../store/auth";
+import { API_URL } from "../config";
 import {
   Container,
   Paper,
@@ -39,7 +40,7 @@ const Admincontacts = () => {
   const getAllContactData = async () => {
     try {
       setLoading(true);
-      const response = await fetch("http://localhost:3000/api/admin/contacts", {
+      const response = await fetch(`${API_URL}/api/admin/contacts`, {
         method: "GET",
         headers: { Authorization: authorizationtoken },
       });
@@ -67,7 +68,7 @@ const Admincontacts = () => {
     if (!deleteContact) return;
     try {
       const response = await fetch(
-        `http://localhost:3000/api/admin/contacts/delete/${deleteContact._id}`,
+        `${API_URL}/api/admin/contacts/delete/${deleteContact._id}`,
         {
           method: "DELETE",
           headers: { Authorization: authorizationtoken },

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../store/auth";
+import { API_URL } from "../config";
 import {
   Container,
   Paper,
@@ -68,7 +69,7 @@ const Adminusers = () => {
       if (search) query.set("search", search);
 
       const response = await fetch(
-        `http://localhost:3000/api/admin/users?${query.toString()}`,
+        `${API_URL}/api/admin/users?${query.toString()}`,
         {
           method: "GET",
           headers: { Authorization: authorizationtoken },
@@ -104,7 +105,7 @@ const Adminusers = () => {
     if (!editUser) return;
     try {
       const response = await fetch(
-        `http://localhost:3000/api/admin/users/update/${editUser._id}`,
+        `${API_URL}/api/admin/users/update/${editUser._id}`,
         {
           method: "PATCH",
           headers: {
@@ -139,7 +140,7 @@ const Adminusers = () => {
     if (!deleteUser) return;
     try {
       const response = await fetch(
-        `http://localhost:3000/api/admin/users/delete/${deleteUser._id}`,
+        `${API_URL}/api/admin/users/delete/${deleteUser._id}`,
         {
           method: "DELETE",
           headers: { Authorization: authorizationtoken },

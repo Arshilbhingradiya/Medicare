@@ -32,7 +32,7 @@
 //     e.preventDefault(); // Fixed typo here
 //     console.log("clicked");
 //     try {
-//       const response = await fetch("http://localhost:3000/api/form/contact", {
+//       const response = await fetch(`${API_URL}/api/form/contact`, {
 //         method: "POST",
 //         headers: {
 //           "Content-Type": "application/json",
@@ -136,6 +136,7 @@ import { useAuth } from "../store/auth";
 import { Link } from "react-router-dom";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { API_URL } from "../config";
 import {
   Container,
   Typography,
@@ -174,7 +175,7 @@ const Contact = () => {
     e.preventDefault(); // Fixed typo here
     console.log("clicked");
     try {
-      const response = await fetch("http://localhost:3000/api/form/contact", {
+      const response = await fetch(`${API_URL}/api/form/contact`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
