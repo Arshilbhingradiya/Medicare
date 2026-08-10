@@ -48,7 +48,7 @@ const getAllDoctors = async (req, res) => {
     const onlyActive =
       req.query.active === "true" || req.query.subscribed === "true";
 
-    const filter = onlyActive
+const filter = onlyActive
       ? {
           $or: [
             { subscriptionStatus: "Active" },
@@ -59,22 +59,30 @@ const getAllDoctors = async (req, res) => {
 
 const doctors = await Doctor.find(filter).populate(
       "userId",
-      "username name email"
+      "username name email role isAdmin"
     );
 
     // Ensure every doctor has a proper full name (fallback to linked user)
-    const enriched = doctors.map((doc) => {
-      const obj = doc.toObject();
-      const linkedUser = obj.userId;
-      let name = obj.name || linkedUser?.name || linkedUser?.username || "";
-      // Strip generic "doctor" placeholder if present
-      if (!name || /^(doctor|dr\.?)$/i.test(name.trim())) {
-        name = linkedUser?.username || `Dr. ${obj._id}`;
-      }
-      obj.name = name;
-      delete obj.userId;
-      return obj;
-    });
+    const enriched = doctors
+      // Exclude doctors whose linked user is an admin (so patients never see admins)
+      .filter((doc) => {
+        const linkedUser = doc.userId;
+        if (!linkedUser) return true;
+        const role = (linkedUser.role || "").toLowerCase();
+        return !(linkedUser.isAdmin || role === "admin");
+      })
+      .map((doc) => {
+        const obj = doc.toObject();
+        const linkedUser = obj.userId;
+        let name = obj.name || linkedUser?.name || linkedUser?.username || "";
+        // Strip generic "doctor" placeholder if present
+        if (!name || /^(doctor|dr\.?)$/i.test(name.trim())) {
+          name = linkedUser?.username || `Dr. ${obj._id}`;
+        }
+        obj.name = name;
+        delete obj.userId;
+        return obj;
+      });
 
     return res.status(200).json(enriched);
   } catch (error) {

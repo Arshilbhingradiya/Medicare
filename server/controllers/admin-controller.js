@@ -98,10 +98,26 @@ const updateuserbyid = async (req,res) =>{
         const id = req.params.id;
         const updateuserdata = req.body;
         const updatedata = await User.updateOne({_id: id} , { $set : updateuserdata,});
+
+        // If the user is being made an admin (isAdmin=true or role "Admin"),
+        // revoke their doctor rights by removing their doctor profile so they
+        // no longer appear in the patient-facing doctor list.
+        const isBecomingAdmin =
+          updateuserdata.isAdmin === true ||
+          (updateuserdata.role && (updateuserdata.role.toLowerCase() === "admin"));
+
+        if (isBecomingAdmin) {
+          const doctor = await Doctor.findOne({ userId: id });
+          if (doctor) {
+            await DoctorSubscription.deleteMany({ doctorId: doctor._id });
+            await Doctor.deleteOne({ _id: doctor._id });
+          }
+        }
+
         res.status(200).json(updatedata);
     } catch (error) {
-        
-        
+        console.log(error);
+        return res.status(500).json({ msg: "Internal server error" });
     }
 }
 

@@ -1,5 +1,6 @@
 const { hash } = require("bcryptjs");
 const User = require("../models/user-model");
+const Doctor = require("../models/Doctor-model");
 const bcrypt = require("bcryptjs");
 
 const normalizeRole = (role) => {
@@ -37,13 +38,31 @@ const register = async (req, res) => {
     const saltround = 10;
     const hash_password = await bcrypt.hash(password, saltround);
 
-    const userCreated = await User.create({
+const userCreated = await User.create({
       username: username?.trim(),
       email: email?.trim().toLowerCase(),
       phone: String(phone).trim(),
       password: hash_password,
       role: normalizedRole,
     });
+
+    // Auto-create a Doctor profile when a user registers as a Doctor.
+    // This ensures the doctor appears in the patient-facing doctor list
+    // (book appointment page & find doctor page) with basic information.
+    if (normalizedRole === "Doctor") {
+      await Doctor.create({
+        userId: userCreated._id,
+        name: username?.trim() || userCreated.username,
+        email: email?.trim().toLowerCase(),
+        phone: String(phone).trim(),
+        specialization: "",
+        clinicAddress: "",
+        city: "",
+        // Default Free subscription so the doctor is visible/listed
+        subscriptionPlan: "Free",
+        subscriptionStatus: "Free",
+      });
+    }
 
     return res.status(200).json({
       msg: "Registration successfully",
