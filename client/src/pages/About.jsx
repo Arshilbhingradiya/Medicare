@@ -94,9 +94,9 @@ const About = () => {
             </motion.div>
             <Grid container spacing={4} justifyContent="center">
               {[
-                { name: "Arshil Patel", role: "CEO", desc: "Over 10 years of experience in healthcare management." },
-                { name: "Jay Patel", role: "CTO", desc: "Passionate about leveraging technology to improve healthcare." },
-                { name: "Harshad Patel", role: "Lead Developer", desc: "Ensuring the platform is user-friendly and reliable." },
+                { name: "Arshil Bhingradiya", role: "CEO", desc: "Over 10 years of experience in healthcare management.",image: "./profile.png" },
+                { name: "Jay Patel", role: "CTO", desc: "Passionate about leveraging technology to improve healthcare.",image: "./profile.png" },
+                { name: "Harshad Patel", role: "Lead Developer", desc: "Ensuring the platform is user-friendly and reliable.",image: "./profile.png" },
               ].map((member, index) => (
                 <Grid item xs={12} sm={6} md={4} key={index}>
                   <motion.div
@@ -107,11 +107,13 @@ const About = () => {
                     <Paper elevation={3} sx={{ p: 4, textAlign: "center", borderRadius: 4 }}>
                       <Avatar
                         alt={member.name}
+                        src={member.image}
                         sx={{
-                          width: 100,
-                          height: 100,
+                          width: 150,
+                          height: 150,
                           mx: "auto",
                           mb: 2,
+                          mt: 2,
                           bgcolor: "#0D47A1",
                           fontSize: 36,
                           fontWeight: 700,

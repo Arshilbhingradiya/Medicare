@@ -19,6 +19,7 @@ import {
 } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../store/auth";
+import { API_URL } from "../../config";
 
 const getDoctorKey = (doctorName) =>
   (doctorName || "doctor")
@@ -65,7 +66,7 @@ const Doctordashboard = () => {
     const fetchSubscription = async () => {
       try {
         const response = await fetch(
-          "http://localhost:3000/api/doctorform/subscription/status",
+          "${API_URL}/api/doctorform/subscription/status",
           {
             method: "GET",
             headers: { Authorization: authorizationtoken },

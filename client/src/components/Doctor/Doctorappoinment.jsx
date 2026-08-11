@@ -13,6 +13,7 @@ import {
   MenuItem,
 } from "@mui/material";
 import { motion } from "framer-motion";
+import { API_URL } from "../../config";
 
 const appointmentsData = [
   {

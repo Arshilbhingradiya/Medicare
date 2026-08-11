@@ -14,14 +14,14 @@
 
 //   // useEffect(() => {
 //   //   axios
-//   //     .get("http://localhost:3000/api/doctor")
+//   //     .get("${API_URL}/api/doctor")
 //   //     .then((res) => setDoctors(res.data))
 //   //     .catch((err) => console.error(err));
 //   // }, []);
 
 //   // const updateStatus = (id, status) => {
 //   //   axios
-//   //     .put(`http://localhost:3000/api/doctor/${id}`, { status })
+//   //     .put(`${API_URL}/api/doctor/${id}`, { status })
 //   //     .then(() => {
 //   //       setDoctors((prev) =>
 //   //         prev.map((doc) => (doc._id === id ? { ...doc, status } : doc))

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../../store/auth";
+import { API_URL } from "../../config";
 import {
   Container,
   TextField,
@@ -101,7 +102,7 @@ const PatientAppointment = () => {
 useEffect(() => {
     const fetchDoctors = async () => {
       try {
-        const response = await fetch("http://localhost:3000/api/doctorform/doctors");
+        const response = await fetch("${API_URL}/api/doctorform/doctors");
         if (response.ok) {
           const data = await response.json();
           const mapped = (Array.isArray(data) ? data : data.doctors || []).map((doc) => ({

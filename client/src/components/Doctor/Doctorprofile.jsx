@@ -18,7 +18,7 @@ import {
 } from "@mui/material";
 import { PhotoCamera } from "@mui/icons-material";
 import { useAuth } from "../../store/auth";
-
+import { API_URL } from "../../config";
 export default function DoctorProfile() {
   const [doctor, setDoctor] = useState({
     name: "",
@@ -96,7 +96,7 @@ export default function DoctorProfile() {
       setOpenSnackbar(true);
 
       const response = await fetch(
-        "http://localhost:3000/api/doctorform/doctorprofile",
+        "${API_URL}/api/doctorform/doctorprofile",
         {
           method: "POST",
           headers: {

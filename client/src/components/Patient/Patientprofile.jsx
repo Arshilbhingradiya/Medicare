@@ -20,6 +20,7 @@ import { Save, UploadFile } from "@mui/icons-material";
 import MuiAlert from "@mui/material/Alert";
 import { useAuth } from "../../store/auth";
 import { styled } from "@mui/material/styles";
+import { API_URL } from "../../config";
 
 const ProfileContainer = styled(Paper)(({ theme }) => ({
   width: "100%",
@@ -98,7 +99,7 @@ const PatientProfile = () => {
 
     try {
       const response = await fetch(
-        "http://localhost:3000/api/patientform/patientprofile",
+        `${API_URL}/patientform/patientprofile`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

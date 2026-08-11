@@ -40,7 +40,7 @@ LogoutRounded,
   WorkspacePremiumRounded,
 } from "@mui/icons-material";
 import { useEffect, useState } from "react";
-
+import { API_URL } from "../config";
 const Navbar = ({
   sidebarOpen = false,
   onToggleSidebar = () => {},
@@ -130,7 +130,7 @@ const updateNotifications = async () => {
 
       try {
         const response = await fetch(
-          "http://localhost:3000/api/notifications",
+          "${API_URL}/api/notifications",
           {
             method: "GET",
             headers: { Authorization: authorizationtoken },
@@ -272,7 +272,7 @@ const handleNotificationRead = async (id, event) => {
     );
     try {
       await fetch(
-        `http://localhost:3000/api/notifications/${id}/read`,
+        `${API_URL}/api/notifications/${id}/read`,
         {
           method: "PATCH",
           headers: { Authorization: authorizationtoken },
@@ -287,7 +287,7 @@ const handleNotificationRead = async (id, event) => {
     if (event) event.stopPropagation();
     setNotifications((prev) => prev.filter((item) => item._id !== id));
     try {
-      await fetch(`http://localhost:3000/api/notifications/${id}`, {
+      await fetch(`${API_URL}/api/notifications/${id}`, {
         method: "DELETE",
         headers: { Authorization: authorizationtoken },
       });

@@ -82,7 +82,7 @@ const Adminsubscriptions = () => {
     if (!editDoctor) return;
     try {
       const response = await fetch(
-        `http://localhost:3000/api/admin/doctors/subscription/${editDoctor._id}`,
+        `${API_URL}/api/admin/doctors/subscription/${editDoctor._id}`,
         {
           method: "PATCH",
           headers: {
