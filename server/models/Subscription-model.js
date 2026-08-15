@@ -33,7 +33,7 @@ const DoctorSubscriptionSchema = new mongoose.Schema(
     },
     paymentMethod: { type: String, default: "Card" },
     paymentReference: { type: String },
-startDate: { type: Date },
+    startDate: { type: Date },
     expiryDate: { type: Date },
     renewalReminderSent: { type: Boolean, default: false },
     renewalReminderDate: { type: Date },
@@ -43,13 +43,7 @@ startDate: { type: Date },
   { timestamps: true }
 );
 
-const SubscriptionPlan = mongoose.model(
-  "SubscriptionPlan",
-  SubscriptionPlanSchema
-);
-const DoctorSubscription = mongoose.model(
-  "DoctorSubscription",
-  DoctorSubscriptionSchema
-);
+const SubscriptionPlan = mongoose.model("SubscriptionPlan", SubscriptionPlanSchema);
+const DoctorSubscription = mongoose.model("DoctorSubscription", DoctorSubscriptionSchema);
 
 module.exports = { SubscriptionPlan, DoctorSubscription };

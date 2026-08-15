@@ -70,6 +70,7 @@
   width: calc(100% - 250px);
   padding: 20px;
   background: #f3f4f6; /* Light gray */
+  box-sizing: border-box;
 }
 
 /* Header inside content */
@@ -78,6 +79,8 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 /* Page content area */
@@ -86,4 +89,79 @@
   padding: 20px;
   border-radius: 10px;
   box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+
+/* ---------------- Responsive breakpoints ---------------- */
+
+/* Tablet: shrink sidebar instead of hiding it */
+@media (max-width: 1024px) {
+  .sidebar {
+    width: 200px;
+    padding: 14px;
+  }
+
+  .main-content {
+    margin-left: 200px;
+    width: calc(100% - 200px);
+    padding: 16px;
+  }
+}
+
+/* Mobile: collapse sidebar to a top bar, stack content below it */
+@media (max-width: 768px) {
+  .admin-layout {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    position: relative;
+    width: 100%;
+    height: auto;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+  }
+
+  .logo {
+    margin-bottom: 0;
+    font-size: 1.2rem;
+  }
+
+  .sidebar nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    width: 100%;
+    order: 3;
+  }
+
+  .nav-link {
+    padding: 8px 10px;
+    margin-bottom: 0;
+    font-size: 0.9rem;
+  }
+
+  .logout-btn {
+    margin-top: 0;
+    padding: 8px 12px;
+  }
+
+  .main-content {
+    margin-left: 0;
+    width: 100%;
+    padding: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .content {
+    padding: 12px;
+  }
+
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }

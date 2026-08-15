@@ -75,3 +75,23 @@
     background-color: #c82333;
   }
   
+/* ---------------- Responsive breakpoints ---------------- */
+
+/* Let wide tables scroll horizontally instead of overflowing/breaking
+   the page layout on tablets and phones */
+.admin-users {
+  width: 100%;
+  overflow-x: auto;
+}
+
+@media (max-width: 768px) {
+  .admin-users-section h1 {
+    font-size: 1.8rem;
+  }
+
+  .admin-users th,
+  .admin-users td {
+    padding: 10px;
+    font-size: 0.85rem;
+  }
+}

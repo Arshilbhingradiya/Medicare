@@ -121,7 +121,7 @@ const mapped = (Array.isArray(data) ? data : data.doctors || []).map((doc) => {
       {/* Doctor List */}
       <Grid container spacing={2}>
         {filteredDoctors.map((doctor) => (
-          <Grid item xs={12} key={doctor.id}>
+          <Grid item xs={12} key={doctor.name}>
             <Card sx={{ display: "flex", alignItems: "center", padding: 2 }}>
               <Avatar sx={{ width: 60, height: 60, marginRight: 2 }} />
               <CardContent sx={{ flexGrow: 1 }}>

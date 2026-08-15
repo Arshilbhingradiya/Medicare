@@ -130,7 +130,7 @@ const updateNotifications = async () => {
 
       try {
         const response = await fetch(
-          "${API_URL}/api/notifications",
+          `${API_URL}/api/notifications`,
           {
             method: "GET",
             headers: { Authorization: authorizationtoken },
@@ -507,7 +507,7 @@ const handleNotificationRead = async (id, event) => {
                             fontWeight: 700,
                           }}
                         >
-                          Quick Access
+                          Docify
                         </Typography>
                         <IconButton
                           onClick={handleDrawerClose}

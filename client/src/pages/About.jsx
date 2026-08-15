@@ -95,8 +95,8 @@ const About = () => {
             <Grid container spacing={4} justifyContent="center">
               {[
                 { name: "Arshil Bhingradiya", role: "CEO", desc: "Over 10 years of experience in healthcare management.",image: "./profile.png" },
-                { name: "Jay Patel", role: "CTO", desc: "Passionate about leveraging technology to improve healthcare.",image: "./profile.png" },
-                { name: "Harshad Patel", role: "Lead Developer", desc: "Ensuring the platform is user-friendly and reliable.",image: "./profile.png" },
+                { name: "Arshil Bhingradiya", role: "CTO", desc: "Passionate about leveraging technology to improve healthcare.",image: "./profile.png" },
+                { name: "Arshil Bhingradiya", role: "Lead Developer", desc: "Ensuring the platform is user-friendly and reliable.",image: "./profile.png" },
               ].map((member, index) => (
                 <Grid item xs={12} sm={6} md={4} key={index}>
                   <motion.div

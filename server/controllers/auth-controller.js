@@ -1,7 +1,6 @@
-const { hash } = require("bcryptjs");
+const bcrypt = require("bcryptjs");
 const User = require("../models/user-model");
 const Doctor = require("../models/Doctor-model");
-const bcrypt = require("bcryptjs");
 
 const normalizeRole = (role) => {
   const normalizedRole = role?.trim().toLowerCase();
@@ -20,58 +19,73 @@ const home = async (req, res) => {
     console.log(error);
   }
 };
+
 const register = async (req, res) => {
   try {
-    const { username, email, phone, password, role } = req.body;
-    const normalizedRole = normalizeRole(role);
+    const { username, email, phone, password, role, specialization, experience, fees } = req.body;
 
-    if (!normalizedRole) {
-      return res.status(400).json({ msg: "Please select a valid role" });
-    }
+    // Normalize email and role
+    const normalizedEmail = email?.trim().toLowerCase();
+    const normalizedRole = normalizeRole(role) || "Patient";
 
-    const userExist = await User.findOne({ email: email?.trim().toLowerCase() });
-
+    // 1. Check if user already exists
+    const userExist = await User.findOne({ email: normalizedEmail });
     if (userExist) {
-      return res.status(409).json({ msg: "Email already exists" });
+      return res.status(400).json({ message: "Email already registered" });
     }
 
-    const saltround = 10;
-    const hash_password = await bcrypt.hash(password, saltround);
+    // Hash the password
+    const salt = await bcrypt.genSalt(10);
+    const hash_password = await bcrypt.hash(password, salt);
 
-const userCreated = await User.create({
+    // 2. Create base User record
+    const userCreated = await User.create({
       username: username?.trim(),
-      email: email?.trim().toLowerCase(),
+      email: normalizedEmail,
       phone: String(phone).trim(),
       password: hash_password,
-      role: normalizedRole,
+      role: normalizedRole
     });
 
-    // Auto-create a Doctor profile when a user registers as a Doctor.
-    // This ensures the doctor appears in the patient-facing doctor list
-    // (book appointment page & find doctor page) with basic information.
+    // 3. Auto-create a Doctor profile when a user registers as a Doctor
     if (normalizedRole === "Doctor") {
-      await Doctor.create({
-        userId: userCreated._id,
-        name: username?.trim() || userCreated.username,
-        email: email?.trim().toLowerCase(),
-        phone: String(phone).trim(),
-        specialization: "",
-        clinicAddress: "",
-        city: "",
-        // Default Free subscription so the doctor is visible/listed
-        subscriptionPlan: "Free",
-        subscriptionStatus: "Free",
-      });
+      try {
+        await Doctor.create({
+          userId: userCreated._id,
+          name: username?.trim() || userCreated.username || "New Doctor",
+          email: normalizedEmail,
+          phone: String(phone || "").trim(),
+          specialization: specialization || "General Physician",
+          experience: experience || 0,
+          fees: fees || 500,
+          clinicAddress: "Not Provided",
+          city: "Not Provided",
+          subscriptionPlan: "Free",
+          subscriptionStatus: "Free",
+          isVerified: true
+        });
+      } catch (docError) {
+        console.error("Doctor profile auto-creation failed:", docError.message);
+        // We do NOT throw an error here, so the user registration still succeeds!
+      }
     }
 
-    return res.status(200).json({
-      msg: "Registration successfully",
-      token: await userCreated.generateToken(),
+    // 4. Generate JWT Token safely
+    let token = "";
+    if (typeof userCreated.generateToken === 'function') {
+      token = await userCreated.generateToken();
+    }
+
+    return res.status(201).json({
+      message: "Registration successfully",
+      token: token,
       userId: userCreated._id.toString(),
+      role: userCreated.role
     });
+
   } catch (error) {
-    console.error("Registration error:", error);
-    return res.status(500).json({ msg: "Internal server error" });
+    console.error("Registration Server Error:", error);
+    return res.status(500).json({ message: "Internal server error during registration" });
   }
 };
 
@@ -84,14 +98,13 @@ const login = async (req, res) => {
       return res.status(400).json({ msg: "Please select a valid role" });
     }
 
-// First try to match the exact role selected in the form (Patient/Doctor)
+    // First try to match the exact role selected in the form
     let userExist = await User.findOne({
       email: email?.trim().toLowerCase(),
       role: normalizedRole,
     });
 
-    // If not found, allow an admin (role "Admin" / isAdmin) to log in regardless
-    // of the form-selected role since "Admin" is hidden from the dropdown.
+    // If not found, allow an admin to log in regardless
     if (!userExist) {
       userExist = await User.findOne({
         email: email?.trim().toLowerCase(),
@@ -103,7 +116,7 @@ const login = async (req, res) => {
       return res.status(401).json({ msg: "Invalid credential" });
     }
 
-const ispasswordvalid = await bcrypt.compare(password, userExist.password);
+    const ispasswordvalid = await bcrypt.compare(password, userExist.password);
 
     if (ispasswordvalid) {
       return res.status(200).json({
@@ -122,16 +135,15 @@ const ispasswordvalid = await bcrypt.compare(password, userExist.password);
   }
 };
 
-// to send user data  - user logic
-
+// to send user data - user logic
 const user = async (req, res) => {
   try {
     const userData = req.user;
-
     return res.status(200).json({ userData });
   } catch (error) {
     console.error("error from the user route", error);
     return res.status(500).json({ msg: "Internal server error" });
   }
 };
+
 module.exports = { home, register, login, user, normalizeRole };

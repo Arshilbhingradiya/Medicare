@@ -184,3 +184,41 @@ textarea:disabled:hover {
 .edit-button:hover {
   background-color: #0056b3;
 }
+
+/* ---------------- Responsive breakpoints ---------------- */
+
+@media (max-width: 768px) {
+  .profile-container {
+    width: 94%;
+    padding: 14px;
+  }
+
+  .profile-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .profile-image {
+    width: 90px;
+    height: 90px;
+  }
+
+  .profile-details {
+    padding-left: 0;
+  }
+
+  .edit-button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .profile-name {
+    font-size: 20px;
+  }
+
+  .profile-title {
+    font-size: 14px;
+  }
+}

@@ -48,7 +48,7 @@ const getAllDoctors = async (req, res) => {
     const onlyActive =
       req.query.active === "true" || req.query.subscribed === "true";
 
-const filter = onlyActive
+    const filter = onlyActive
       ? {
           $or: [
             { subscriptionStatus: "Active" },
@@ -57,7 +57,7 @@ const filter = onlyActive
         }
       : {};
 
-const doctors = await Doctor.find(filter).populate(
+    const doctors = await Doctor.find(filter).populate(
       "userId",
       "username name email role isAdmin"
     );
@@ -121,12 +121,36 @@ const updateDoctorProfile = async (req, res) => {
   }
 };
 
+// --- THIS WAS MISSING! ---
+// Get doctor profile for the logged-in user
+const getDoctorProfile = async (req, res) => {
+  try {
+    const userId = req.userID;
+    
+    if (!userId) {
+      return res.status(401).json({ msg: "Not authenticated" });
+    }
+
+    const doctor = await Doctor.findOne({ userId });
+    
+    if (!doctor) {
+      return res.status(404).json({ msg: "Doctor profile not found" });
+    }
+    
+    return res.status(200).json(doctor);
+  } catch (error) {
+    console.log("Error getting doctor profile:", error);
+    return res.status(500).json({ msg: "Internal server error", error });
+  }
+};
+// --------------------------
+
 // Get available subscription plans
 const getPlans = async (req, res) => {
   try {
     let plans = await SubscriptionPlan.find({ active: true }).lean();
 
-if (!plans || plans.length === 0) {
+    if (!plans || plans.length === 0) {
       // Seed default plans if none exist
       const defaults = [
         {
@@ -263,6 +287,7 @@ module.exports = {
   doctorprofile,
   getAllDoctors,
   getDoctorById,
+  getDoctorProfile,
   updateDoctorProfile,
   getPlans,
   enrollSubscription,

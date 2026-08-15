@@ -58,3 +58,13 @@ h1 {
   max-width: 1200px;
   margin: 0 auto;
 }
+
+@media (max-width: 480px) {
+  h1 {
+    font-size: 1.8rem;
+  }
+
+  .card {
+    margin: 10px 0;
+  }
+}

@@ -48,25 +48,89 @@ const Doctordashboard = () => {
     user?.name ||
     "Dr. Current User";
 
-  useEffect(() => {
-    const syncAppointments = () => {
-      const stored = JSON.parse(localStorage.getItem("appointmentBookings") || "[]");
-      const doctorAppointments = (Array.isArray(stored) ? stored : []).filter(
-        (booking) => booking.doctor === doctorName && booking.status !== "completed"
-      );
-      setAppointments(doctorAppointments);
-    };
+  // useEffect(() => {
 
-    syncAppointments();
-    window.addEventListener("appointments-updated", syncAppointments);
-    return () => window.removeEventListener("appointments-updated", syncAppointments);
-  }, [doctorName]);
+  //   const syncAppointments = () => {
+  //     const stored = JSON.parse(localStorage.getItem("appointmentBookings") || "[]");
+  //     const doctorAppointments = (Array.isArray(stored) ? stored : []).filter(
+  //       (booking) => booking.doctor === doctorName && booking.status !== "completed"
+  //     );
+  //     setAppointments(doctorAppointments);
+  //   };
+
+  //   syncAppointments();
+  //   window.addEventListener("appointments-updated", syncAppointments);
+  //   return () => window.removeEventListener("appointments-updated", syncAppointments);
+  // }, [doctorName]);
+
+  useEffect(() => {
+  const fetchAppointments = async () => {
+    try {
+      if (!authorizationtoken) {
+        return;
+      }
+
+      const response = await fetch(
+        `${API_URL}/api/patientform/appointments/doctor`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: authorizationtoken,
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error(
+          "Failed to fetch doctor appointments:",
+          data
+        );
+
+        setMessage(
+          data.msg ||
+            "Failed to load appointments."
+        );
+
+        return;
+      }
+
+      console.log(
+        "Doctor appointments from MongoDB:",
+        data
+      );
+
+      const doctorAppointments = (
+        Array.isArray(data) ? data : []
+      ).filter(
+        (appointment) =>
+          appointment.status !== "completed"
+      );
+
+      setAppointments(doctorAppointments);
+
+    } catch (error) {
+      console.error(
+        "Error fetching doctor appointments:",
+        error
+      );
+
+      setMessage(
+        "Unable to load appointments from server."
+      );
+    }
+  };
+
+  fetchAppointments();
+
+}, [authorizationtoken]);
 
   useEffect(() => {
     const fetchSubscription = async () => {
       try {
         const response = await fetch(
-          "${API_URL}/api/doctorform/subscription/status",
+          `${API_URL}/api/doctorform/subscription/status`,
           {
             method: "GET",
             headers: { Authorization: authorizationtoken },
@@ -131,19 +195,72 @@ const Doctordashboard = () => {
     setMessage(`Saved notes for ${selectedAppointment.patientName || "patient"}.`);
   };
 
-  const handleMarkDone = (appointment) => {
-    const stored = JSON.parse(localStorage.getItem("appointmentBookings") || "[]");
-    const updated = stored.map((booking) =>
-      booking.id === appointment.id ? { ...booking, status: "completed", completedAt: new Date().toISOString(), notes: booking.notes || `Treatment completed for ${appointment.patientName || "patient"} on ${appointment.date} at ${appointment.time}.` } : booking
+  // const handleMarkDone = (appointment) => {
+  //   const stored = JSON.parse(localStorage.getItem("appointmentBookings") || "[]");
+  //   const updated = stored.map((booking) =>
+  //     booking.id === appointment.id ? { ...booking, status: "completed", completedAt: new Date().toISOString(), notes: booking.notes || `Treatment completed for ${appointment.patientName || "patient"} on ${appointment.date} at ${appointment.time}.` } : booking
+  //   );
+  //   localStorage.setItem("appointmentBookings", JSON.stringify(updated));
+
+  //   setAppointments((prev) => prev.filter((item) => item.id !== appointment.id));
+  //   window.dispatchEvent(new Event("appointments-updated"));
+  //   window.dispatchEvent(new Event("history-updated"));
+  //   setMessage(`Marked ${appointment.patientName || "patient"} as treated.`);
+  // };
+ 
+  const handleMarkDone = async (appointment) => {
+  try {
+    const appointmentId =
+      appointment._id || appointment.id;
+
+    const response = await fetch(
+      `${API_URL}/api/patientform/appointments/${appointmentId}/status`,
+      {
+        method: "PATCH",
+
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: authorizationtoken,
+        },
+
+        body: JSON.stringify({
+          status: "completed",
+        }),
+      }
     );
-    localStorage.setItem("appointmentBookings", JSON.stringify(updated));
 
-    setAppointments((prev) => prev.filter((item) => item.id !== appointment.id));
-    window.dispatchEvent(new Event("appointments-updated"));
-    window.dispatchEvent(new Event("history-updated"));
-    setMessage(`Marked ${appointment.patientName || "patient"} as treated.`);
-  };
+    const data = await response.json();
 
+    if (!response.ok) {
+      setMessage(
+        data.msg ||
+          "Failed to update appointment."
+      );
+      return;
+    }
+
+    setAppointments((prev) =>
+      prev.filter(
+        (item) =>
+          (item._id || item.id) !== appointmentId
+      )
+    );
+
+    setMessage(
+      `${appointment.patientName || "Patient"} marked as completed.`
+    );
+
+  } catch (error) {
+    console.error(
+      "Mark appointment completed error:",
+      error
+    );
+
+    setMessage(
+      "Unable to update appointment."
+    );
+  }
+};
   return (
     <Container maxWidth="xl" sx={{ py: 4, px: { xs: 2, md: 4, lg: 6 } }}>
       <Paper elevation={4} sx={{ p: { xs: 3, md: 5, lg: 6 }, borderRadius: 4, background: "linear-gradient(135deg, #f8fbff 0%, #eef4ff 100%)" }}>

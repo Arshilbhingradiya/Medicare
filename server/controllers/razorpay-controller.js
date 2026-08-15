@@ -1,115 +1,304 @@
 const Razorpay = require("razorpay");
 const crypto = require("crypto");
+
 const Doctor = require("../models/Doctor-model");
 const {
   SubscriptionPlan,
   DoctorSubscription,
 } = require("../models/Subscription-model");
-const { createNotification } = require("./notification-controller");
 
-const TRIAL_DAYS = 14;
 
-// Compute trial end date from trialStartDate
-const getTrialEnd = (trialStartDate) => {
-  if (!trialStartDate) return null;
-  const end = new Date(trialStartDate);
-  end.setDate(end.getDate() + TRIAL_DAYS);
-  return end;
-};
+// ======================================================
+// Razorpay configuration
+// ======================================================
 
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
   key_secret: process.env.RAZORPAY_KEY_SECRET,
 });
 
-// ===== Free Trial =====
-const activateTrial = async (req, res) => {
+
+// ======================================================
+// GET SUBSCRIPTION STATUS
+// GET /subscription/status
+// ======================================================
+
+const checkSubscriptionStatus = async (req, res) => {
   try {
-    const userId = req.userID || req.body.userId;
+    const userId = req.userID || req.userId;
+
     if (!userId) {
-      return res.status(401).json({ msg: "Not authenticated" });
+      return res.status(401).json({
+        success: false,
+        msg: "Not authenticated",
+      });
     }
 
     const doctor = await Doctor.findOne({ userId });
-    if (!doctor) {
-      return res
-        .status(404)
-        .json({ msg: "Doctor profile not found. Please complete your profile first." });
-    }
 
-    // Already subscribed or trial already started
-    if (doctor.subscriptionStatus === "Active") {
-      return res
-        .status(400)
-        .json({ msg: "You already have an active subscription." });
-    }
-    if (doctor.trialStartDate) {
-      return res
-        .status(400)
-        .json({ msg: "Free trial already activated." });
+    if (!doctor) {
+      return res.status(404).json({
+        success: false,
+        msg: "Doctor profile not found",
+      });
     }
 
     const now = new Date();
-    doctor.trialStartDate = now;
-    doctor.subscriptionStatus = "Free";
-    doctor.subscriptionPlan = "Free";
-    await doctor.save();
 
-    const trialEnd = new Date(now);
-    trialEnd.setDate(trialEnd.getDate() + TRIAL_DAYS);
+    // Your Doctor model currently uses subscriptionExpiry
+    if (
+      doctor.subscriptionStatus === "Active" &&
+      doctor.subscriptionExpiry &&
+      new Date(doctor.subscriptionExpiry) <= now
+    ) {
+      doctor.subscriptionStatus = "Expired";
+      doctor.isSubscribed = false;
+
+      await doctor.save();
+    }
+
+    // Trial expiry
+    if (
+      doctor.subscriptionStatus === "Trial" &&
+      doctor.trialEndsAt &&
+      new Date(doctor.trialEndsAt) <= now
+    ) {
+      doctor.subscriptionStatus = "TrialExpired";
+      doctor.isSubscribed = false;
+
+      await doctor.save();
+    }
 
     return res.status(200).json({
-      msg: "Free trial activated for 14 days!",
-      doctor,
-      trialEnd,
+      success: true,
+      subscription: {
+        isSubscribed: doctor.isSubscribed || false,
+        planName: doctor.subscriptionPlan || null,
+        status: doctor.subscriptionStatus || "Inactive",
+        expiryDate: doctor.subscriptionExpiry || null,
+        trialStartDate: doctor.trialStartDate || null,
+        trialEndsAt: doctor.trialEndsAt || null,
+      },
     });
+
   } catch (error) {
-    console.log(error);
-    return res.status(500).json({ msg: "Internal server error", error });
+    console.error("Check subscription status error:", error);
+
+    return res.status(500).json({
+      success: false,
+      msg: "Failed to check subscription status",
+      error: error.message,
+    });
   }
 };
 
-// ===== Create Razorpay Order =====
+
+// ======================================================
+// ACTIVATE FREE TRIAL
+// POST /subscription/trial
+// ======================================================
+
+const activateTrial = async (req, res) => {
+  try {
+    const userId = req.userID || req.userId;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        msg: "Not authenticated",
+      });
+    }
+
+    const doctor = await Doctor.findOne({ userId });
+
+    if (!doctor) {
+      return res.status(404).json({
+        success: false,
+        msg: "Doctor profile not found",
+      });
+    }
+
+    // Prevent using trial more than once
+    if (
+      doctor.trialStartDate ||
+      doctor.trialEndsAt ||
+      doctor.subscriptionStatus === "Trial" ||
+      doctor.subscriptionStatus === "TrialExpired"
+    ) {
+      return res.status(400).json({
+        success: false,
+        msg: "Free trial has already been used",
+      });
+    }
+
+    const trialDays = 7;
+
+    const trialStartDate = new Date();
+
+    const trialEndsAt = new Date(trialStartDate);
+
+    trialEndsAt.setDate(
+      trialEndsAt.getDate() + trialDays
+    );
+
+    // Update doctor
+    doctor.isSubscribed = true;
+    doctor.subscriptionPlan = "Free Trial";
+    doctor.subscriptionStatus = "Trial";
+
+    doctor.trialStartDate = trialStartDate;
+    doctor.trialEndsAt = trialEndsAt;
+
+    // Use same expiry field as your existing doctor controller
+    doctor.subscriptionExpiry = trialEndsAt;
+
+    await doctor.save();
+
+    // Also create/update subscription record
+    let subscription = await DoctorSubscription.findOne({
+      userId,
+    });
+
+    if (subscription) {
+      subscription.plan = "Free Trial";
+      subscription.price = 0;
+      subscription.status = "Active";
+      subscription.startDate = trialStartDate;
+      subscription.expiryDate = trialEndsAt;
+
+      await subscription.save();
+    } else {
+      subscription = await DoctorSubscription.create({
+        userId,
+        doctorId: doctor._id,
+        plan: "Free Trial",
+        price: 0,
+        status: "Active",
+        paymentMethod: "Trial",
+        paymentReference: `TRIAL-${Date.now()}`,
+        startDate: trialStartDate,
+        expiryDate: trialEndsAt,
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      msg: "Free trial activated successfully",
+
+      subscription: {
+        plan: "Free Trial",
+        status: "Trial",
+        startDate: trialStartDate,
+        expiryDate: trialEndsAt,
+      },
+    });
+
+  } catch (error) {
+    console.error("Activate trial error:", error);
+
+    return res.status(500).json({
+      success: false,
+      msg: "Failed to activate trial",
+      error: error.message,
+    });
+  }
+};
+
+
+// ======================================================
+// CREATE RAZORPAY ORDER
+// POST /subscription/create-order
+// ======================================================
+
 const createOrder = async (req, res) => {
   try {
-    const { plan } = req.body;
-    const userId = req.userID || req.body.userId;
+    const userId = req.userID || req.userId;
+
     if (!userId) {
-      return res.status(401).json({ msg: "Not authenticated" });
+      return res.status(401).json({
+        success: false,
+        msg: "Not authenticated",
+      });
     }
 
-    const planData = await SubscriptionPlan.findOne({ name: plan, active: true });
+    const {
+      plan,
+      planName,
+    } = req.body;
+
+    // Accept either plan or planName
+    const selectedPlan = plan || planName;
+
+    if (!selectedPlan) {
+      return res.status(400).json({
+        success: false,
+        msg: "Plan name is required",
+      });
+    }
+
+    // Find plan from DB
+    const planData = await SubscriptionPlan.findOne({
+      name: selectedPlan,
+      active: true,
+    });
+
     if (!planData) {
-      return res.status(400).json({ msg: "Invalid subscription plan" });
+      return res.status(404).json({
+        success: false,
+        msg: "Subscription plan not found",
+      });
     }
 
-    const amountInPaise = Math.round(planData.price * 100);
+    // Find doctor
+    const doctor = await Doctor.findOne({
+      userId,
+    });
+
+    if (!doctor) {
+      return res.status(404).json({
+        success: false,
+        msg: "Doctor profile not found",
+      });
+    }
+
+    // Razorpay amount is paise
+    const amount = Math.round(planData.price * 100);
 
     const options = {
-      amount: amountInPaise,
+      amount,
       currency: "INR",
-      receipt: `receipt_${Date.now()}`,
+
+      receipt: `MED-${Date.now()}`,
+
       notes: {
-        userId,
+        userId: String(userId),
+        doctorId: String(doctor._id),
         plan: planData.name,
       },
     };
 
+    // Create Razorpay order
     const order = await razorpay.orders.create(options);
 
-    // Save order id on doctor subscription record (pending)
-    let subscription = await DoctorSubscription.findOne({ userId });
+    // Find existing subscription
+    let subscription = await DoctorSubscription.findOne({
+      userId,
+    });
+
     if (subscription) {
       subscription.plan = planData.name;
       subscription.price = planData.price;
       subscription.status = "Pending";
+
+      // Store Razorpay order
       subscription.razorpayOrderId = order.id;
+
       await subscription.save();
+
     } else {
-      const doctor = await Doctor.findOne({ userId });
-      await DoctorSubscription.create({
+      subscription = await DoctorSubscription.create({
         userId,
-        doctorId: doctor ? doctor._id : null,
+        doctorId: doctor._id,
         plan: planData.name,
         price: planData.price,
         status: "Pending",
@@ -118,230 +307,248 @@ const createOrder = async (req, res) => {
     }
 
     return res.status(200).json({
-      orderId: order.id,
-      amount: order.amount,
-      currency: order.currency,
-      keyId: process.env.RAZORPAY_KEY_ID,
-      plan: planData,
+      success: true,
+
+      order: {
+        id: order.id,
+        amount: order.amount,
+        currency: order.currency,
+      },
+
+      key: process.env.RAZORPAY_KEY_ID,
+
+      plan: {
+        name: planData.name,
+        price: planData.price,
+        durationDays: planData.durationDays,
+        billingCycle: planData.billingCycle,
+      },
     });
+
   } catch (error) {
-    console.log(error);
-    return res.status(500).json({ msg: "Failed to create order", error });
+    console.error("Create Razorpay order error:", error);
+
+    return res.status(500).json({
+      success: false,
+      msg: "Failed to create Razorpay order",
+      error: error.message,
+    });
   }
 };
 
-// ===== Verify Payment (client-side signature) =====
+
+// ======================================================
+// VERIFY RAZORPAY PAYMENT
+// POST /subscription/verify
+// ======================================================
+
 const verifyPayment = async (req, res) => {
   try {
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
-    const userId = req.userID || req.body.userId;
+    const userId = req.userID || req.userId;
 
-    const body = razorpay_order_id + "|" + razorpay_payment_id;
-    const expectedSignature = crypto
-      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
-      .update(body.toString())
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        msg: "Not authenticated",
+      });
+    }
+
+    const {
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature,
+    } = req.body;
+
+    if (
+      !razorpay_order_id ||
+      !razorpay_payment_id ||
+      !razorpay_signature
+    ) {
+      return res.status(400).json({
+        success: false,
+        msg: "Payment details are missing",
+      });
+    }
+
+    // ------------------------------------------
+    // Verify Razorpay signature
+    // ------------------------------------------
+
+    const generatedSignature = crypto
+      .createHmac(
+        "sha256",
+        process.env.RAZORPAY_KEY_SECRET
+      )
+      .update(
+        `${razorpay_order_id}|${razorpay_payment_id}`
+      )
       .digest("hex");
 
-    if (expectedSignature !== razorpay_signature) {
-      return res.status(400).json({ msg: "Payment verification failed" });
+    if (generatedSignature !== razorpay_signature) {
+      return res.status(400).json({
+        success: false,
+        msg: "Invalid payment signature",
+      });
     }
 
-    const subscription = await DoctorSubscription.findOne({
-      userId,
-      razorpayOrderId: razorpay_order_id,
-    });
-    if (!subscription) {
-      return res.status(404).json({ msg: "Order not found" });
-    }
+    // ------------------------------------------
+    // Find pending subscription
+    // ------------------------------------------
 
-    const planData = await SubscriptionPlan.findOne({ name: subscription.plan });
-    const startDate = new Date();
-    const expiryDate = new Date(startDate);
-    expiryDate.setDate(expiryDate.getDate() + (planData ? planData.durationDays : 30));
-
-    subscription.status = "Active";
-    subscription.paymentMethod = "Razorpay";
-    subscription.paymentReference = razorpay_payment_id;
-    subscription.razorpayPaymentId = razorpay_payment_id;
-    subscription.startDate = startDate;
-    subscription.expiryDate = expiryDate;
-    subscription.renewalReminderSent = false;
-    await subscription.save();
-
-    const doctor = await Doctor.findById(subscription.doctorId);
-    if (doctor) {
-      doctor.subscriptionPlan = subscription.plan;
-      doctor.subscriptionStatus = "Active";
-      doctor.subscriptionExpiry = expiryDate;
-      await doctor.save();
-    }
-
-    return res.status(200).json({
-      msg: "Payment verified. Subscription activated!",
-      subscription,
-      doctor,
-    });
-  } catch (error) {
-    console.log(error);
-    return res.status(500).json({ msg: "Internal server error", error });
-  }
-};
-
-// ===== Razorpay Webhook (server-side confirmation) =====
-const razorpayWebhook = async (req, res) => {
-  try {
-    const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
-    const signature = req.headers["x-razorpay-signature"];
-
-    if (!secret || !signature) {
-      return res.status(400).json({ ok: false });
-    }
-
-    const expectedSignature = crypto
-      .createHmac("sha256", secret)
-      .update(req.rawBody || JSON.stringify(req.body))
-      .digest("hex");
-
-    if (expectedSignature !== signature) {
-      return res.status(400).json({ ok: false });
-    }
-
-    const { event, payload } = req.body;
-
-    if (event === "payment.captured" || event === "order.paid") {
-      const payment = payload.payment?.entity || payload.order?.entity || {};
-      const orderId = payment.order_id || payment.id;
-      const paymentId = payment.id;
-
-      const subscription = await DoctorSubscription.findOne({
-        $or: [{ razorpayOrderId: orderId }, { razorpayOrderId: paymentId }],
+    const subscription =
+      await DoctorSubscription.findOne({
+        userId,
+        razorpayOrderId: razorpay_order_id,
       });
 
-      if (subscription) {
-        const planData = await SubscriptionPlan.findOne({ name: subscription.plan });
-        const startDate = new Date();
-        const expiryDate = new Date(startDate);
-        expiryDate.setDate(expiryDate.getDate() + (planData ? planData.durationDays : 30));
-
-        subscription.status = "Active";
-        subscription.paymentReference = paymentId;
-        subscription.razorpayPaymentId = paymentId;
-        subscription.paymentMethod = "Razorpay";
-        subscription.startDate = startDate;
-        subscription.expiryDate = expiryDate;
-        subscription.renewalReminderSent = false;
-        await subscription.save();
-
-        const doctor = await Doctor.findById(subscription.doctorId);
-        if (doctor) {
-          doctor.subscriptionPlan = subscription.plan;
-          doctor.subscriptionStatus = "Active";
-          doctor.subscriptionExpiry = expiryDate;
-          await doctor.save();
-        }
-      }
+    if (!subscription) {
+      return res.status(404).json({
+        success: false,
+        msg: "Subscription order not found",
+      });
     }
 
-    return res.status(200).json({ ok: true });
-  } catch (error) {
-    console.log(error);
-    return res.status(500).json({ ok: false });
-  }
-};
+    // ------------------------------------------
+    // Find doctor
+    // ------------------------------------------
 
-// ===== Get Subscription Status =====
-const checkSubscriptionStatus = async (req, res) => {
-  try {
-    const userId = req.userID || req.body.userId;
-    if (!userId) {
-      return res.status(401).json({ msg: "Not authenticated" });
-    }
-
-    const doctor = await Doctor.findOne({ userId });
-    const subscription = await DoctorSubscription.findOne({ userId });
-
-let status = "None";
-    let plan = "Free";
-    let trialActive = false;
-    let trialStartDate = null;
-    let trialEndsAt = null;
-    let expiryDate = null;
-
-    if (doctor) {
-      plan = doctor.subscriptionPlan || "Free";
-      expiryDate = doctor.subscriptionExpiry || null;
-      trialStartDate = doctor.trialStartDate || null;
-
-      if (doctor.subscriptionStatus === "Active") {
-        status = "Active";
-      } else if (doctor.subscriptionStatus === "Expired") {
-        status = "Expired";
-      } else if (
-        doctor.subscriptionStatus === "Free" &&
-        doctor.trialStartDate
-      ) {
-        trialEndsAt = getTrialEnd(doctor.trialStartDate);
-        trialActive = new Date() < trialEndsAt;
-        status = trialActive ? "Trial" : "TrialExpired";
-      }
-    }
-
-    return res.status(200).json({
-      status,
-      plan,
-      trialActive,
-      trialStartDate,
-      trialEndsAt,
-      expiryDate,
-      subscription,
-      doctor,
+    const doctor = await Doctor.findOne({
+      userId,
     });
-  } catch (error) {
-    console.log(error);
-    return res.status(500).json({ msg: "Internal server error" });
-  }
-};
 
-// ===== Renewal Reminder helper (called by periodic job) =====
-const sendRenewalReminders = async () => {
-  try {
+    if (!doctor) {
+      return res.status(404).json({
+        success: false,
+        msg: "Doctor profile not found",
+      });
+    }
+
+    // ------------------------------------------
+    // Find plan
+    // ------------------------------------------
+
+    const planData =
+      await SubscriptionPlan.findOne({
+        name: subscription.plan,
+        active: true,
+      });
+
+    if (!planData) {
+      return res.status(404).json({
+        success: false,
+        msg: "Subscription plan not found",
+      });
+    }
+
     const now = new Date();
-    const threeDaysLater = new Date(now);
-    threeDaysLater.setDate(threeDaysLater.getDate() + 3);
 
-    const subscriptions = await DoctorSubscription.find({
-      status: "Active",
-      expiryDate: { $gte: now, $lte: threeDaysLater },
-      renewalReminderSent: { $ne: true },
-    });
+    // ------------------------------------------
+    // Start date
+    // ------------------------------------------
 
-    for (const sub of subscriptions) {
-      const doctor = await Doctor.findById(sub.doctorId);
-      const reminderDate = new Date(sub.expiryDate);
-      reminderDate.setDate(reminderDate.getDate() - 3);
+    let startDate = now;
 
-      sub.renewalReminderSent = true;
-      sub.renewalReminderDate = reminderDate;
-      await sub.save();
-
-      // In-app style reminder (no email service configured):
-      console.log(
-        `[RENEWAL REMINDER] Doctor: ${doctor?.name || sub.userId} | Plan: ${
-          sub.plan
-        } | Expires: ${sub.expiryDate.toLocaleDateString()} | Reminder sent ${reminderDate.toLocaleDateString()}`
+    // If current subscription is still active,
+    // extend from current expiry instead of today.
+    if (
+      doctor.subscriptionStatus === "Active" &&
+      doctor.subscriptionExpiry &&
+      new Date(doctor.subscriptionExpiry) > now
+    ) {
+      startDate = new Date(
+        doctor.subscriptionExpiry
       );
     }
+
+    // ------------------------------------------
+    // Calculate expiry
+    // ------------------------------------------
+
+    const expiryDate = new Date(startDate);
+
+    expiryDate.setDate(
+      expiryDate.getDate() + planData.durationDays
+    );
+
+    // ------------------------------------------
+    // Update DoctorSubscription
+    // ------------------------------------------
+
+    subscription.status = "Active";
+
+    subscription.startDate = startDate;
+
+    subscription.expiryDate = expiryDate;
+
+    subscription.paymentReference =
+      razorpay_payment_id;
+
+    // Only save this if your schema has this field
+    subscription.razorpayPaymentId =
+      razorpay_payment_id;
+
+    await subscription.save();
+
+    // ------------------------------------------
+    // Update Doctor
+    // ------------------------------------------
+
+    doctor.isSubscribed = true;
+
+    doctor.subscriptionPlan =
+      planData.name;
+
+    doctor.subscriptionStatus = "Active";
+
+    doctor.subscriptionExpiry =
+      expiryDate;
+
+    doctor.paymentReference =
+      razorpay_payment_id;
+
+    // Trial is no longer relevant after payment
+    doctor.trialStartDate = undefined;
+    doctor.trialEndsAt = undefined;
+
+    await doctor.save();
+
+    return res.status(200).json({
+      success: true,
+
+      msg: "Payment verified successfully",
+
+      subscription: {
+        plan: planData.name,
+        status: "Active",
+        startDate,
+        expiryDate,
+        paymentReference:
+          razorpay_payment_id,
+      },
+    });
+
   } catch (error) {
-    console.log("Renewal reminder cron error:", error);
+    console.error(
+      "Razorpay payment verification error:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      msg: "Payment verification failed",
+      error: error.message,
+    });
   }
 };
 
+
+// ======================================================
+// EXPORTS
+// ======================================================
+
 module.exports = {
+  checkSubscriptionStatus,
   activateTrial,
   createOrder,
   verifyPayment,
-  razorpayWebhook,
-  checkSubscriptionStatus,
-  sendRenewalReminders,
-  TRIAL_DAYS,
 };

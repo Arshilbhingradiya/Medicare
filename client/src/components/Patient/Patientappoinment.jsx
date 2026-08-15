@@ -87,7 +87,7 @@ const PatientAppointment = () => {
     specialization: "",
     name: "",
   });
-  const [doctors, setDoctors] = useState(defaultDoctors);
+  const [doctors, setDoctors] = useState([]);
   const [filteredDoctors, setFilteredDoctors] = useState(defaultDoctors);
   const [selectedDoctor, setSelectedDoctor] = useState("");
   const [selectedDate, setSelectedDate] = useState("");
@@ -102,7 +102,7 @@ const PatientAppointment = () => {
 useEffect(() => {
     const fetchDoctors = async () => {
       try {
-        const response = await fetch("${API_URL}/api/doctorform/doctors");
+        const response = await fetch(`${API_URL}/api/doctorform/doctors`);
         if (response.ok) {
           const data = await response.json();
           const mapped = (Array.isArray(data) ? data : data.doctors || []).map((doc) => ({
@@ -198,7 +198,7 @@ useEffect(() => {
     }
 
     const bookedCount = bookings.filter(
-      (booking) => booking.doctor === selectedDoc.name && booking.date === selectedDate && booking.time === time
+      (booking) => booking.doctor === selectedDoc.id && booking.date === selectedDate && booking.time === time
     ).length;
 
     const remaining = Math.max(0, selectedDoc.slotCapacity - bookedCount);
@@ -212,66 +212,453 @@ useEffect(() => {
     }
   };
 
-  const handleSubmit = () => {
-    if (!selectedDoctor || !selectedDate || !selectedTime) {
-      setMessage("Please select doctor, date and time before booking.");
-      setMessageType("warning");
-      return;
-    }
+  // const handleSubmit = () => {
+  //   if (!selectedDoctor || !selectedDate || !selectedTime) {
+  //     setMessage("Please select doctor, date and time before booking.");
+  //     setMessageType("warning");
+  //     return;
+  //   }
 
-    const selectedDoc = doctors.find((doctor) => doctor.name === selectedDoctor);
-    if (!selectedDoc) {
-      setMessage("Selected doctor could not be found.");
+  //   const selectedDoc = doctors.find((doctor) => doctor.name === selectedDoctor);
+  //   if (!selectedDoc) {
+  //     setMessage("Selected doctor could not be found.");
+  //     setMessageType("error");
+  //     return;
+  //   }
+
+  //   const currentBookings = getBookings();
+  //   const bookedCount = currentBookings.filter(
+  //     (booking) => booking.doctor === selectedDoc.name && booking.date === selectedDate && booking.time === selectedTime
+  //   ).length;
+
+  //   if (!isSlotAvailableForBooking(selectedDate, selectedTime)) {
+  //     setMessage("Please choose a future date and time.");
+  //     setMessageType("warning");
+  //     return;
+  //   }
+
+  //   if (bookedCount >= selectedDoc.slotCapacity) {
+  //     setMessage("No slots available for this time.");
+  //     setMessageType("warning");
+  //     return;
+  //   }
+
+  //   const newBooking = {
+  //     id: Date.now(),
+  //     doctor: selectedDoc.name,
+  //     date: selectedDate,
+  //     time: selectedTime,
+  //     status: "upcoming",
+  //     createdAt: new Date().toISOString(),
+  //     source: "booking",
+  //     patientName: user?.username || user?.name || "Patient",
+  //     patientId: user?.id || null,
+  //   };
+
+  //   const existingNotifications = JSON.parse(localStorage.getItem("appointmentNotifications") || "[]");
+  //   const updatedNotifications = [newBooking, ...existingNotifications].filter(
+  //     (item, index, arr) => arr.findIndex((entry) => entry.id === item.id) === index
+  //   ).slice(0, 8);
+  //   const updatedBookings = [...currentBookings, newBooking];
+  //   localStorage.setItem("appointmentBookings", JSON.stringify(updatedBookings));
+  //   localStorage.setItem("appointmentNotifications", JSON.stringify(updatedNotifications));
+  //   localStorage.setItem("latestAppointmentNotification", JSON.stringify(newBooking));
+  //   localStorage.setItem(`patientNotification_${user?.id || "guest"}`, JSON.stringify(newBooking));
+  //   window.dispatchEvent(new Event("appointments-updated"));
+  //   setBookings(updatedBookings);
+  //   setMessage(`Appointment booked with ${selectedDoc.name} on ${selectedDate} at ${selectedTime}`);
+  //   setMessageType("success");
+  //   setBookingSuccess(true);
+  //   setAvailableSlots(Math.max(0, selectedDoc.slotCapacity - (bookedCount + 1)));
+  // };
+
+//   const handleSubmit = async () => {
+//   if (!selectedDoctor || !selectedDate || !selectedTime) {
+//     setMessage("Please select doctor, date and time before booking.");
+//     setMessageType("warning");
+//     return;
+//   }
+
+//   const selectedDoc = doctors.find(
+//     (doctor) => doctor.name === selectedDoctor
+//   );
+
+//   if (!selectedDoc) {
+//     setMessage("Selected doctor could not be found.");
+//     setMessageType("error");
+//     return;
+//   }
+
+//   // User must be logged in because backend appointment route
+//   // requires authentication.
+//   const token = localStorage.getItem("token");
+
+//   if (!token) {
+//     setMessage("Please login before booking an appointment.");
+//     setMessageType("warning");
+//     return;
+//   }
+
+//   const currentBookings = getBookings();
+
+//   // Check frontend slot capacity
+//   const bookedCount = currentBookings.filter(
+//     (booking) =>
+//       booking.doctorId === selectedDoc.id &&
+//       booking.date === selectedDate &&
+//       booking.time === selectedTime
+//   ).length;
+
+//   if (!isSlotAvailableForBooking(selectedDate, selectedTime)) {
+//     setMessage("Please choose a future date and time.");
+//     setMessageType("warning");
+//     return;
+//   }
+
+//   if (bookedCount >= selectedDoc.slotCapacity) {
+//     setMessage("No slots available for this time.");
+//     setMessageType("warning");
+//     return;
+//   }
+
+//   try {
+//     setMessage("Booking appointment...");
+//     setMessageType("info");
+//     setBookingSuccess(false);
+
+//     const patientName =
+//       user?.name ||
+//       user?.username ||
+//       "Patient";
+
+//     const patientId =
+//       user?._id ||
+//       user?.id ||
+//       null;
+
+//     // ==========================================
+//     // SEND APPOINTMENT TO BACKEND
+//     // ==========================================
+
+//     const response = await fetch(
+//       `${API_URL}/api/patientform/appointments`,
+//       {
+//         method: "POST",
+
+//         headers: {
+//           "Content-Type": "application/json",
+//           Authorization: `Bearer ${token}`,
+//         },
+
+//         body: JSON.stringify({
+//           doctorId: selectedDoc.id,
+//           doctorName: selectedDoc.name,
+
+//           date: selectedDate,
+//           time: selectedTime,
+
+//           patientName,
+//           patientId,
+
+//           reason: "Appointment booking",
+//         }),
+//       }
+//     );
+
+//     const data = await response.json();
+
+//     // ==========================================
+//     // BACKEND ERROR
+//     // ==========================================
+
+//     if (!response.ok) {
+//       console.error("Booking API error:", data);
+
+//       setMessage(
+//         data.msg ||
+//         data.message ||
+//         "Failed to book appointment."
+//       );
+
+//       setMessageType("error");
+//       setBookingSuccess(false);
+
+//       return;
+//     }
+
+//     // ==========================================
+//     // DATABASE BOOKING SUCCESS
+//     // ==========================================
+
+//     const savedAppointment = data.appointment;
+
+//     console.log(
+//       "Appointment successfully saved in database:",
+//       savedAppointment
+//     );
+
+//     // ==========================================
+//     // SAVE DATABASE APPOINTMENT LOCALLY
+//     // This is only for immediate UI updates.
+//     // MongoDB is now the actual source of truth.
+//     // ==========================================
+
+//     const newBooking = {
+//       id: savedAppointment?._id || Date.now(),
+
+//       // IMPORTANT: keep doctorId
+//       doctorId: selectedDoc.id,
+
+//       doctor: selectedDoc.name,
+
+//       date: selectedDate,
+//       time: selectedTime,
+
+//       status: savedAppointment?.status || "pending",
+
+//       createdAt:
+//         savedAppointment?.createdAt ||
+//         new Date().toISOString(),
+
+//       source: "booking",
+
+//       patientName,
+
+//       patientId,
+
+//       reason:
+//         savedAppointment?.reason ||
+//         "Appointment booking",
+//     };
+
+//     const updatedBookings = [
+//       ...currentBookings,
+//       newBooking,
+//     ];
+
+//     // Notifications
+//     const existingNotifications = JSON.parse(
+//       localStorage.getItem(
+//         "appointmentNotifications"
+//       ) || "[]"
+//     );
+
+//     const updatedNotifications = [
+//       newBooking,
+//       ...existingNotifications,
+//     ]
+//       .filter(
+//         (item, index, arr) =>
+//           arr.findIndex(
+//             (entry) => entry.id === item.id
+//           ) === index
+//       )
+//       .slice(0, 8);
+
+//     localStorage.setItem(
+//       "appointmentBookings",
+//       JSON.stringify(updatedBookings)
+//     );
+
+//     localStorage.setItem(
+//       "appointmentNotifications",
+//       JSON.stringify(updatedNotifications)
+//     );
+
+//     localStorage.setItem(
+//       "latestAppointmentNotification",
+//       JSON.stringify(newBooking)
+//     );
+
+//     localStorage.setItem(
+//       `patientNotification_${patientId || "guest"}`,
+//       JSON.stringify(newBooking)
+//     );
+
+//     window.dispatchEvent(
+//       new Event("appointments-updated")
+//     );
+
+//     setBookings(updatedBookings);
+
+//     setMessage(
+//       `Appointment booked successfully with ${selectedDoc.name} on ${selectedDate} at ${selectedTime}`
+//     );
+
+//     setMessageType("success");
+
+//     setBookingSuccess(true);
+
+//     setAvailableSlots(
+//       Math.max(
+//         0,
+//         selectedDoc.slotCapacity -
+//           (bookedCount + 1)
+//       )
+//     );
+
+//   } catch (error) {
+//     console.error(
+//       "Appointment booking failed:",
+//       error
+//     );
+
+//     setMessage(
+//       "Unable to connect to the server. Please try again."
+//     );
+
+//     setMessageType("error");
+
+//     setBookingSuccess(false);
+//   }
+// };
+
+ const handleSubmit = async () => {
+  if (!selectedDoctor || !selectedDate || !selectedTime) {
+    setMessage("Please select doctor, date and time before booking.");
+    setMessageType("warning");
+    return;
+  }
+
+  const selectedDoc = doctors.find(
+    (doctor) => doctor.name === selectedDoctor
+  );
+
+  if (!selectedDoc) {
+    setMessage("Selected doctor could not be found.");
+    setMessageType("error");
+    return;
+  }
+
+  const token = localStorage.getItem("token");
+
+  if (!token) {
+    setMessage("Please login before booking an appointment.");
+    setMessageType("warning");
+    return;
+  }
+
+  try {
+    setMessage("Booking appointment...");
+    setMessageType("info");
+
+    const patientName =
+      user?.name ||
+      user?.username ||
+      "Patient";
+
+    const patientId =
+      user?._id ||
+      user?.id ||
+      null;
+
+    const response = await fetch(
+      `${API_URL}/api/patientform/appointments`,
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+
+        body: JSON.stringify({
+          doctorId: selectedDoc.id,
+          doctorName: selectedDoc.name,
+          date: selectedDate,
+          time: selectedTime,
+          patientName,
+          patientId,
+          reason: "Appointment booking",
+        }),
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error("Booking error:", data);
+
+      setMessage(
+        data.msg ||
+          data.message ||
+          "Failed to book appointment."
+      );
+
       setMessageType("error");
       return;
     }
 
-    const currentBookings = getBookings();
-    const bookedCount = currentBookings.filter(
-      (booking) => booking.doctor === selectedDoc.name && booking.date === selectedDate && booking.time === selectedTime
-    ).length;
+    console.log(
+      "Appointment saved in MongoDB:",
+      data.appointment
+    );
 
-    if (!isSlotAvailableForBooking(selectedDate, selectedTime)) {
-      setMessage("Please choose a future date and time.");
-      setMessageType("warning");
-      return;
-    }
-
-    if (bookedCount >= selectedDoc.slotCapacity) {
-      setMessage("No slots available for this time.");
-      setMessageType("warning");
-      return;
-    }
+    // Use the database appointment
+    const savedAppointment = data.appointment;
 
     const newBooking = {
-      id: Date.now(),
+      id: savedAppointment._id,
+
+      _id: savedAppointment._id,
+
+      doctorId: selectedDoc.id,
+
       doctor: selectedDoc.name,
+
       date: selectedDate,
+
       time: selectedTime,
-      status: "upcoming",
-      createdAt: new Date().toISOString(),
-      source: "booking",
-      patientName: user?.username || user?.name || "Patient",
-      patientId: user?.id || null,
+
+      status: savedAppointment.status || "pending",
+
+      patientName,
+
+      patientId,
+
+      reason:
+        savedAppointment.reason ||
+        "Appointment booking",
+
+      createdAt:
+        savedAppointment.createdAt ||
+        new Date().toISOString(),
+
+      source: "database",
     };
 
-    const existingNotifications = JSON.parse(localStorage.getItem("appointmentNotifications") || "[]");
-    const updatedNotifications = [newBooking, ...existingNotifications].filter(
-      (item, index, arr) => arr.findIndex((entry) => entry.id === item.id) === index
-    ).slice(0, 8);
-    const updatedBookings = [...currentBookings, newBooking];
-    localStorage.setItem("appointmentBookings", JSON.stringify(updatedBookings));
-    localStorage.setItem("appointmentNotifications", JSON.stringify(updatedNotifications));
-    localStorage.setItem("latestAppointmentNotification", JSON.stringify(newBooking));
-    localStorage.setItem(`patientNotification_${user?.id || "guest"}`, JSON.stringify(newBooking));
-    window.dispatchEvent(new Event("appointments-updated"));
-    setBookings(updatedBookings);
-    setMessage(`Appointment booked with ${selectedDoc.name} on ${selectedDate} at ${selectedTime}`);
-    setMessageType("success");
-    setBookingSuccess(true);
-    setAvailableSlots(Math.max(0, selectedDoc.slotCapacity - (bookedCount + 1)));
-  };
+    // Only update React state.
+    // MongoDB is the actual source of truth.
+    setBookings((prev) => [
+      ...prev,
+      newBooking,
+    ]);
 
+    setMessage(
+      `Appointment booked successfully with ${selectedDoc.name}`
+    );
+
+    setMessageType("success");
+
+    setBookingSuccess(true);
+
+    setAvailableSlots((prev) =>
+      Math.max(0, prev - 1)
+    );
+
+  } catch (error) {
+    console.error(
+      "Appointment booking failed:",
+      error
+    );
+
+    setMessage(
+      "Unable to connect to server. Please try again."
+    );
+
+    setMessageType("error");
+  }
+};
   const selectedDoctorData = doctors.find((doctor) => doctor.name === selectedDoctor);
   const timeOptions = selectedDoctorData ? createTimeSlots(selectedDoctorData.availabilitySchedule, selectedDoctorData.slotCapacity) : [];
 
@@ -404,7 +791,7 @@ useEffect(() => {
                     const isSelected = selectedDoctor === doctor.name;
                     return (
                       <Card
-                        key={doctor.id}
+                        key={doctor.name}
                         variant="outlined"
                         sx={{
                           borderRadius: 3,

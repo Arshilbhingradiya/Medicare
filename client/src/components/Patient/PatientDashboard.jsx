@@ -17,6 +17,7 @@ import {
   Box,
 } from "@mui/material";
 import { format } from "date-fns";
+import { API_URL } from "../../config";
 
 const appointmentsData = [
   {
@@ -93,21 +94,61 @@ const PatientDashboard = () => {
   const [newDate, setNewDate] = useState("");
   const [newTime, setNewTime] = useState("");
 
+  // useEffect(() => {
+  //   const loadAppointments = () => {
+  //     const storedBookings = getStoredBookings();
+  //     const merged = sortAppointments([
+  //       ...appointmentsData.map((appointment) => ({ ...appointment, source: "seed" })),
+  //       ...storedBookings,
+  //     ]);
+  //     setAppointments(merged);
+  //   };
+
+  //   loadAppointments();
+  //   window.addEventListener("appointments-updated", loadAppointments);
+  //   return () => window.removeEventListener("appointments-updated", loadAppointments);
+  // }, []);
+
   useEffect(() => {
-    const loadAppointments = () => {
-      const storedBookings = getStoredBookings();
-      const merged = sortAppointments([
-        ...appointmentsData.map((appointment) => ({ ...appointment, source: "seed" })),
-        ...storedBookings,
-      ]);
-      setAppointments(merged);
-    };
+  const fetchAppointments = async () => {
+    try {
+      const token = localStorage.getItem("token");
 
-    loadAppointments();
-    window.addEventListener("appointments-updated", loadAppointments);
-    return () => window.removeEventListener("appointments-updated", loadAppointments);
-  }, []);
+      if (!token) return;
 
+      const response = await fetch(
+        `${API_URL}/api/patientform/appointments/mine`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error(
+          "Failed to load appointments:",
+          data
+        );
+        return;
+      }
+
+      setAppointments(
+        Array.isArray(data) ? data : []
+      );
+
+    } catch (error) {
+      console.error(
+        "Error fetching appointments:",
+        error
+      );
+    }
+  };
+
+  fetchAppointments();
+}, []);
   const handleReschedule = (appointment) => {
     if (!isAppointmentUpcoming(appointment)) {
       return;
