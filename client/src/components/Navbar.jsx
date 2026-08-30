@@ -264,29 +264,17 @@ const handleAppointmentCTA = () => {
     setNotificationMenuAnchor(null);
   };
 
-const handleNotificationRead = async (id, event) => {
+  // Once the patient sees (clicks) a notification, mark it read and remove it
+  // from view so it disappears immediately — no separate "remove" step needed.
+  const handleNotificationSeen = async (id, event) => {
     if (event) event.stopPropagation();
-    // Optimistically mark as read in UI
-    setNotifications((prev) =>
-      prev.map((item) => (item._id === id ? { ...item, read: true } : item))
-    );
-    try {
-      await fetch(
-        `${API_URL}/api/notifications/${id}/read`,
-        {
-          method: "PATCH",
-          headers: { Authorization: authorizationtoken },
-        }
-      );
-    } catch {
-      // ignore
-    }
-  };
-
-  const handleNotificationDismiss = async (id, event) => {
-    if (event) event.stopPropagation();
+    // Optimistically remove from the UI right away
     setNotifications((prev) => prev.filter((item) => item._id !== id));
     try {
+      await fetch(`${API_URL}/api/notifications/${id}/read`, {
+        method: "PATCH",
+        headers: { Authorization: authorizationtoken },
+      });
       await fetch(`${API_URL}/api/notifications/${id}`, {
         method: "DELETE",
         headers: { Authorization: authorizationtoken },
@@ -742,7 +730,7 @@ const handleNotificationRead = async (id, event) => {
             return (
               <MenuItem
                 key={id}
-                onClick={(e) => handleNotificationRead(id, e)}
+                onClick={(e) => handleNotificationSeen(id, e)}
                 sx={{
                   minWidth: 300,
                   display: "block",
@@ -775,14 +763,13 @@ const handleNotificationRead = async (id, event) => {
                     {meta.doctorName} • {meta.date || ""} • {meta.time || ""}
                   </Typography>
                 )}
-                <Button
-                  size="small"
-                  color={isRead ? "default" : "primary"}
-                  onClick={(e) => handleNotificationDismiss(id, e)}
-                  sx={{ textTransform: "none", mt: 0.5 }}
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{ mt: 0.5, display: "block" }}
                 >
-                  {isRead ? "Remove" : "Mark as read & remove"}
-                </Button>
+                  Tap to dismiss
+                </Typography>
               </MenuItem>
             );
           })

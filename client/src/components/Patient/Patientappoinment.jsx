@@ -23,6 +23,8 @@ import {
   Divider,
   Tooltip,
   Fade,
+  Grow,
+  Skeleton,
 } from "@mui/material";
 import {
   LocationOn,
@@ -87,9 +89,15 @@ const PatientAppointment = () => {
     specialization: "",
     name: "",
   });
+
   const [doctors, setDoctors] = useState([]);
   const [filteredDoctors, setFilteredDoctors] = useState(defaultDoctors);
   const [selectedDoctor, setSelectedDoctor] = useState("");
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loadingDoctors, setLoadingDoctors] = useState(false);
+
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedTime, setSelectedTime] = useState("");
   const [availableSlots, setAvailableSlots] = useState(0);
@@ -99,13 +107,21 @@ const PatientAppointment = () => {
   const [bookingSuccess, setBookingSuccess] = useState(false);
   const { user } = useAuth();
 
-useEffect(() => {
+  useEffect(() => {
     const fetchDoctors = async () => {
+      setLoadingDoctors(true);
       try {
-        const response = await fetch(`${API_URL}/api/doctorform/doctors`);
+        const response = await fetch(`${API_URL}/api/doctorform/doctors?page=${currentPage}&limit=10`);
         if (response.ok) {
           const data = await response.json();
-          const mapped = (Array.isArray(data) ? data : data.doctors || []).map((doc) => ({
+
+          const doctorsList = data.doctors ? data.doctors : Array.isArray(data) ? data : [];
+
+          if (data.pagination) {
+            setTotalPages(data.pagination.totalPages);
+          }
+
+          const mapped = doctorsList.map((doc) => ({
             id: doc._id,
             name: doc.name || "Dr. Unknown",
             specialization: doc.specialization || "General Physician",
@@ -118,16 +134,19 @@ useEffect(() => {
             qualifications: doc.qualifications,
             bio: doc.bio,
           }));
+
           setDoctors(mapped);
           setFilteredDoctors(mapped);
         }
       } catch (error) {
         console.error("Failed to fetch doctors:", error);
+      } finally {
+        setLoadingDoctors(false);
       }
     };
 
     fetchDoctors();
-  }, []);
+  }, [currentPage]);
 
   useEffect(() => {
     const filtered = doctors.filter(
@@ -141,6 +160,14 @@ useEffect(() => {
 
   const handleFilterChange = (e) => {
     setFilters({ ...filters, [e.target.name]: e.target.value });
+  };
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) setCurrentPage((prev) => prev + 1);
+  };
+
+  const handlePrevPage = () => {
+    if (currentPage > 1) setCurrentPage((prev) => prev - 1);
   };
 
   const handleDoctorChange = (doctorName) => {
@@ -176,7 +203,10 @@ useEffect(() => {
     }
 
     if (chosenDay.getTime() === today.getTime()) {
-      const [hour, minute] = (selectedTimeValue?.split("-")[0] || "00:00").match(/(\d{1,2}):(\d{2})/)?.slice(1).map(Number) || [0, 0];
+      const [hour, minute] = (selectedTimeValue?.split("-")[0] || "00:00")
+        .match(/(\d{1,2}):(\d{2})/)
+        ?.slice(1)
+        .map(Number) || [0, 0];
       const selectedHour = hour % 12 + (selectedTimeValue?.includes("PM") ? 12 : 0);
       const currentHour = now.getHours();
       const currentMinute = now.getMinutes();
@@ -212,356 +242,42 @@ useEffect(() => {
     }
   };
 
-  // const handleSubmit = () => {
-  //   if (!selectedDoctor || !selectedDate || !selectedTime) {
-  //     setMessage("Please select doctor, date and time before booking.");
-  //     setMessageType("warning");
-  //     return;
-  //   }
-
-  //   const selectedDoc = doctors.find((doctor) => doctor.name === selectedDoctor);
-  //   if (!selectedDoc) {
-  //     setMessage("Selected doctor could not be found.");
-  //     setMessageType("error");
-  //     return;
-  //   }
-
-  //   const currentBookings = getBookings();
-  //   const bookedCount = currentBookings.filter(
-  //     (booking) => booking.doctor === selectedDoc.name && booking.date === selectedDate && booking.time === selectedTime
-  //   ).length;
-
-  //   if (!isSlotAvailableForBooking(selectedDate, selectedTime)) {
-  //     setMessage("Please choose a future date and time.");
-  //     setMessageType("warning");
-  //     return;
-  //   }
-
-  //   if (bookedCount >= selectedDoc.slotCapacity) {
-  //     setMessage("No slots available for this time.");
-  //     setMessageType("warning");
-  //     return;
-  //   }
-
-  //   const newBooking = {
-  //     id: Date.now(),
-  //     doctor: selectedDoc.name,
-  //     date: selectedDate,
-  //     time: selectedTime,
-  //     status: "upcoming",
-  //     createdAt: new Date().toISOString(),
-  //     source: "booking",
-  //     patientName: user?.username || user?.name || "Patient",
-  //     patientId: user?.id || null,
-  //   };
-
-  //   const existingNotifications = JSON.parse(localStorage.getItem("appointmentNotifications") || "[]");
-  //   const updatedNotifications = [newBooking, ...existingNotifications].filter(
-  //     (item, index, arr) => arr.findIndex((entry) => entry.id === item.id) === index
-  //   ).slice(0, 8);
-  //   const updatedBookings = [...currentBookings, newBooking];
-  //   localStorage.setItem("appointmentBookings", JSON.stringify(updatedBookings));
-  //   localStorage.setItem("appointmentNotifications", JSON.stringify(updatedNotifications));
-  //   localStorage.setItem("latestAppointmentNotification", JSON.stringify(newBooking));
-  //   localStorage.setItem(`patientNotification_${user?.id || "guest"}`, JSON.stringify(newBooking));
-  //   window.dispatchEvent(new Event("appointments-updated"));
-  //   setBookings(updatedBookings);
-  //   setMessage(`Appointment booked with ${selectedDoc.name} on ${selectedDate} at ${selectedTime}`);
-  //   setMessageType("success");
-  //   setBookingSuccess(true);
-  //   setAvailableSlots(Math.max(0, selectedDoc.slotCapacity - (bookedCount + 1)));
-  // };
-
-//   const handleSubmit = async () => {
-//   if (!selectedDoctor || !selectedDate || !selectedTime) {
-//     setMessage("Please select doctor, date and time before booking.");
-//     setMessageType("warning");
-//     return;
-//   }
-
-//   const selectedDoc = doctors.find(
-//     (doctor) => doctor.name === selectedDoctor
-//   );
-
-//   if (!selectedDoc) {
-//     setMessage("Selected doctor could not be found.");
-//     setMessageType("error");
-//     return;
-//   }
-
-//   // User must be logged in because backend appointment route
-//   // requires authentication.
-//   const token = localStorage.getItem("token");
-
-//   if (!token) {
-//     setMessage("Please login before booking an appointment.");
-//     setMessageType("warning");
-//     return;
-//   }
-
-//   const currentBookings = getBookings();
-
-//   // Check frontend slot capacity
-//   const bookedCount = currentBookings.filter(
-//     (booking) =>
-//       booking.doctorId === selectedDoc.id &&
-//       booking.date === selectedDate &&
-//       booking.time === selectedTime
-//   ).length;
-
-//   if (!isSlotAvailableForBooking(selectedDate, selectedTime)) {
-//     setMessage("Please choose a future date and time.");
-//     setMessageType("warning");
-//     return;
-//   }
-
-//   if (bookedCount >= selectedDoc.slotCapacity) {
-//     setMessage("No slots available for this time.");
-//     setMessageType("warning");
-//     return;
-//   }
-
-//   try {
-//     setMessage("Booking appointment...");
-//     setMessageType("info");
-//     setBookingSuccess(false);
-
-//     const patientName =
-//       user?.name ||
-//       user?.username ||
-//       "Patient";
-
-//     const patientId =
-//       user?._id ||
-//       user?.id ||
-//       null;
-
-//     // ==========================================
-//     // SEND APPOINTMENT TO BACKEND
-//     // ==========================================
-
-//     const response = await fetch(
-//       `${API_URL}/api/patientform/appointments`,
-//       {
-//         method: "POST",
-
-//         headers: {
-//           "Content-Type": "application/json",
-//           Authorization: `Bearer ${token}`,
-//         },
-
-//         body: JSON.stringify({
-//           doctorId: selectedDoc.id,
-//           doctorName: selectedDoc.name,
-
-//           date: selectedDate,
-//           time: selectedTime,
-
-//           patientName,
-//           patientId,
-
-//           reason: "Appointment booking",
-//         }),
-//       }
-//     );
-
-//     const data = await response.json();
-
-//     // ==========================================
-//     // BACKEND ERROR
-//     // ==========================================
-
-//     if (!response.ok) {
-//       console.error("Booking API error:", data);
-
-//       setMessage(
-//         data.msg ||
-//         data.message ||
-//         "Failed to book appointment."
-//       );
-
-//       setMessageType("error");
-//       setBookingSuccess(false);
-
-//       return;
-//     }
-
-//     // ==========================================
-//     // DATABASE BOOKING SUCCESS
-//     // ==========================================
-
-//     const savedAppointment = data.appointment;
-
-//     console.log(
-//       "Appointment successfully saved in database:",
-//       savedAppointment
-//     );
-
-//     // ==========================================
-//     // SAVE DATABASE APPOINTMENT LOCALLY
-//     // This is only for immediate UI updates.
-//     // MongoDB is now the actual source of truth.
-//     // ==========================================
-
-//     const newBooking = {
-//       id: savedAppointment?._id || Date.now(),
-
-//       // IMPORTANT: keep doctorId
-//       doctorId: selectedDoc.id,
-
-//       doctor: selectedDoc.name,
-
-//       date: selectedDate,
-//       time: selectedTime,
-
-//       status: savedAppointment?.status || "pending",
-
-//       createdAt:
-//         savedAppointment?.createdAt ||
-//         new Date().toISOString(),
-
-//       source: "booking",
-
-//       patientName,
-
-//       patientId,
-
-//       reason:
-//         savedAppointment?.reason ||
-//         "Appointment booking",
-//     };
-
-//     const updatedBookings = [
-//       ...currentBookings,
-//       newBooking,
-//     ];
-
-//     // Notifications
-//     const existingNotifications = JSON.parse(
-//       localStorage.getItem(
-//         "appointmentNotifications"
-//       ) || "[]"
-//     );
-
-//     const updatedNotifications = [
-//       newBooking,
-//       ...existingNotifications,
-//     ]
-//       .filter(
-//         (item, index, arr) =>
-//           arr.findIndex(
-//             (entry) => entry.id === item.id
-//           ) === index
-//       )
-//       .slice(0, 8);
-
-//     localStorage.setItem(
-//       "appointmentBookings",
-//       JSON.stringify(updatedBookings)
-//     );
-
-//     localStorage.setItem(
-//       "appointmentNotifications",
-//       JSON.stringify(updatedNotifications)
-//     );
-
-//     localStorage.setItem(
-//       "latestAppointmentNotification",
-//       JSON.stringify(newBooking)
-//     );
-
-//     localStorage.setItem(
-//       `patientNotification_${patientId || "guest"}`,
-//       JSON.stringify(newBooking)
-//     );
-
-//     window.dispatchEvent(
-//       new Event("appointments-updated")
-//     );
-
-//     setBookings(updatedBookings);
-
-//     setMessage(
-//       `Appointment booked successfully with ${selectedDoc.name} on ${selectedDate} at ${selectedTime}`
-//     );
-
-//     setMessageType("success");
-
-//     setBookingSuccess(true);
-
-//     setAvailableSlots(
-//       Math.max(
-//         0,
-//         selectedDoc.slotCapacity -
-//           (bookedCount + 1)
-//       )
-//     );
-
-//   } catch (error) {
-//     console.error(
-//       "Appointment booking failed:",
-//       error
-//     );
-
-//     setMessage(
-//       "Unable to connect to the server. Please try again."
-//     );
-
-//     setMessageType("error");
-
-//     setBookingSuccess(false);
-//   }
-// };
-
- const handleSubmit = async () => {
-  if (!selectedDoctor || !selectedDate || !selectedTime) {
-    setMessage("Please select doctor, date and time before booking.");
-    setMessageType("warning");
-    return;
-  }
-
-  const selectedDoc = doctors.find(
-    (doctor) => doctor.name === selectedDoctor
-  );
-
-  if (!selectedDoc) {
-    setMessage("Selected doctor could not be found.");
-    setMessageType("error");
-    return;
-  }
-
-  const token = localStorage.getItem("token");
-
-  if (!token) {
-    setMessage("Please login before booking an appointment.");
-    setMessageType("warning");
-    return;
-  }
-
-  try {
-    setMessage("Booking appointment...");
-    setMessageType("info");
-
-    const patientName =
-      user?.name ||
-      user?.username ||
-      "Patient";
-
-    const patientId =
-      user?._id ||
-      user?.id ||
-      null;
-
-    const response = await fetch(
-      `${API_URL}/api/patientform/appointments`,
-      {
+  const handleSubmit = async () => {
+    if (!selectedDoctor || !selectedDate || !selectedTime) {
+      setMessage("Please select doctor, date and time before booking.");
+      setMessageType("warning");
+      return;
+    }
+
+    const selectedDoc = doctors.find((doctor) => doctor.name === selectedDoctor);
+
+    if (!selectedDoc) {
+      setMessage("Selected doctor could not be found.");
+      setMessageType("error");
+      return;
+    }
+
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      setMessage("Please login before booking an appointment.");
+      setMessageType("warning");
+      return;
+    }
+
+    try {
+      setMessage("Booking appointment...");
+      setMessageType("info");
+
+      const patientName = user?.name || user?.username || "Patient";
+      const patientId = user?._id || user?.id || null;
+
+      const response = await fetch(`${API_URL}/api/patientform/appointments`, {
         method: "POST",
-
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-
         body: JSON.stringify({
           doctorId: selectedDoc.id,
           doctorName: selectedDoc.name,
@@ -571,96 +287,49 @@ useEffect(() => {
           patientId,
           reason: "Appointment booking",
         }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setMessage(data.msg || data.message || "Failed to book appointment.");
+        setMessageType("error");
+        return;
       }
-    );
 
-    const data = await response.json();
+      const savedAppointment = data.appointment;
 
-    if (!response.ok) {
-      console.error("Booking error:", data);
+      const newBooking = {
+        id: savedAppointment._id,
+        _id: savedAppointment._id,
+        doctorId: selectedDoc.id,
+        doctor: selectedDoc.name,
+        date: selectedDate,
+        time: selectedTime,
+        status: savedAppointment.status || "pending",
+        patientName,
+        patientId,
+        reason: savedAppointment.reason || "Appointment booking",
+        createdAt: savedAppointment.createdAt || new Date().toISOString(),
+        source: "database",
+      };
 
-      setMessage(
-        data.msg ||
-          data.message ||
-          "Failed to book appointment."
-      );
-
+      setBookings((prev) => [...prev, newBooking]);
+      setMessage(`Appointment booked successfully with ${selectedDoc.name}`);
+      setMessageType("success");
+      setBookingSuccess(true);
+      setAvailableSlots((prev) => Math.max(0, prev - 1));
+    } catch (error) {
+      console.error("Appointment booking failed:", error);
+      setMessage("Unable to connect to server. Please try again.");
       setMessageType("error");
-      return;
     }
+  };
 
-    console.log(
-      "Appointment saved in MongoDB:",
-      data.appointment
-    );
-
-    // Use the database appointment
-    const savedAppointment = data.appointment;
-
-    const newBooking = {
-      id: savedAppointment._id,
-
-      _id: savedAppointment._id,
-
-      doctorId: selectedDoc.id,
-
-      doctor: selectedDoc.name,
-
-      date: selectedDate,
-
-      time: selectedTime,
-
-      status: savedAppointment.status || "pending",
-
-      patientName,
-
-      patientId,
-
-      reason:
-        savedAppointment.reason ||
-        "Appointment booking",
-
-      createdAt:
-        savedAppointment.createdAt ||
-        new Date().toISOString(),
-
-      source: "database",
-    };
-
-    // Only update React state.
-    // MongoDB is the actual source of truth.
-    setBookings((prev) => [
-      ...prev,
-      newBooking,
-    ]);
-
-    setMessage(
-      `Appointment booked successfully with ${selectedDoc.name}`
-    );
-
-    setMessageType("success");
-
-    setBookingSuccess(true);
-
-    setAvailableSlots((prev) =>
-      Math.max(0, prev - 1)
-    );
-
-  } catch (error) {
-    console.error(
-      "Appointment booking failed:",
-      error
-    );
-
-    setMessage(
-      "Unable to connect to server. Please try again."
-    );
-
-    setMessageType("error");
-  }
-};
   const selectedDoctorData = doctors.find((doctor) => doctor.name === selectedDoctor);
-  const timeOptions = selectedDoctorData ? createTimeSlots(selectedDoctorData.availabilitySchedule, selectedDoctorData.slotCapacity) : [];
+  const timeOptions = selectedDoctorData
+    ? createTimeSlots(selectedDoctorData.availabilitySchedule, selectedDoctorData.slotCapacity)
+    : [];
 
   const formatCustomDate = (dateValue) => {
     if (!dateValue) return "";
@@ -688,426 +357,403 @@ useEffect(() => {
 
   return (
     <Container maxWidth="xl" sx={{ py: { xs: 2, md: 4 }, px: { xs: 1.5, md: 3 } }}>
-      {/* Hero Header */}
-      <Paper
-        elevation={0}
-        sx={{
-          borderRadius: 4,
-          overflow: "hidden",
-          mb: 3,
-          background: "linear-gradient(135deg, #0d47a1 0%, #1976d2 100%)",
-          color: "white",
-          position: "relative",
-        }}
-      >
-        <Box
+      {/* Hero Header Animated */}
+      <Grow in={true} timeout={600}>
+        <Paper
+          elevation={4}
           sx={{
-            p: { xs: 3, md: 5 },
-            background: "radial-gradient(circle at 90% 10%, rgba(255,255,255,0.12) 0%, transparent 40%)",
+            borderRadius: 4,
+            overflow: "hidden",
+            mb: 4,
+            background: "linear-gradient(135deg, #0d47a1 0%, #1e88e5 100%)",
+            color: "white",
+            position: "relative",
+            boxShadow: "0px 10px 30px rgba(13, 71, 161, 0.2)",
           }}
         >
-          <Stack direction={{ xs: "column", md: "row" }} spacing={2} justifyContent="space-between" alignItems={{ xs: "flex-start", md: "center" }}>
-            <Box>
-              <Typography variant="overline" sx={{ color: "#FFEB3B", fontWeight: 700, letterSpacing: 1.5 }}>
-                Patient Portal
-              </Typography>
-              <Typography variant="h4" sx={{ fontWeight: 800, mt: 0.5 }}>
-                Schedule Your Visit
-              </Typography>
-              <Typography variant="body1" sx={{ mt: 1, opacity: 0.95, maxWidth: 600 }}>
-                Choose your preferred doctor, pick a convenient date and time slot, and let us take care of the rest.
-              </Typography>
-            </Box>
-            <Stack direction={{ xs: "row", sm: "row" }} spacing={1} sx={{ flexWrap: "wrap" }}>
-              <Chip icon={<Verified sx={{ color: "#FFEB3B" }} />} label="Verified doctors" sx={{ bgcolor: "rgba(255,255,255,0.16)", color: "white", fontWeight: 600 }} />
-              <Chip icon={<EventAvailable sx={{ color: "#FFEB3B" }} />} label="Flexible slots" sx={{ bgcolor: "rgba(255,255,255,0.16)", color: "white", fontWeight: 600 }} />
-              <Chip icon={<MedicalServices sx={{ color: "#FFEB3B" }} />} label="Secure booking" sx={{ bgcolor: "rgba(255,255,255,0.16)", color: "white", fontWeight: 600 }} />
-            </Stack>
-          </Stack>
-        </Box>
-      </Paper>
-
-      <Grid container spacing={3}>
-        {/* Left Column - Doctor Selection */}
-        <Grid item xs={12} md={5} lg={5}>
-          <Paper elevation={0} sx={{ borderRadius: 3, border: "1px solid #e3f2fd", overflow: "hidden" }}>
-            <Box sx={{ p: 2.5, pb: 2, display: "flex", alignItems: "center", gap: 1, borderBottom: "1px solid #e3f2fd" }}>
-              <MedicalServices color="primary" sx={{ fontSize: 26 }} />
+          <Box
+            sx={{
+              p: { xs: 3, md: 5 },
+              background: "radial-gradient(circle at 90% 10%, rgba(255,255,255,0.15) 0%, transparent 50%)",
+            }}
+          >
+            <Stack
+              direction={{ xs: "column", md: "row" }}
+              spacing={2}
+              justifyContent="space-between"
+              alignItems={{ xs: "flex-start", md: "center" }}
+            >
               <Box>
-                <Typography variant="h6" fontWeight={700} color="primary.main">
-                  Choose a Doctor
+                <Typography variant="overline" sx={{ color: "#FFeb3b", fontWeight: 800, letterSpacing: 1.5 }}>
+                  Patient Portal
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Filter by city, specialty, or name
+                <Typography variant="h3" sx={{ fontWeight: 800, mt: 0.5, letterSpacing: "-0.5px" }}>
+                  Schedule Your Visit
+                </Typography>
+                <Typography variant="body1" sx={{ mt: 1.5, opacity: 0.9, maxWidth: 600, fontSize: "1.1rem" }}>
+                  Choose your preferred doctor, pick a convenient date and time slot, and let us take care of the rest.
                 </Typography>
               </Box>
-            </Box>
+              <Stack direction={{ xs: "row", sm: "row" }} spacing={1.5} sx={{ flexWrap: "wrap", mt: { xs: 2, md: 0 } }}>
+                <Chip
+                  icon={<Verified sx={{ color: "#FFEB3B !important" }} />}
+                  label="Verified Doctors"
+                  sx={{ bgcolor: "rgba(255,255,255,0.2)", color: "white", fontWeight: 600, px: 1, py: 2.5 }}
+                />
+                <Chip
+                  icon={<EventAvailable sx={{ color: "#FFEB3B !important" }} />}
+                  label="Flexible Slots"
+                  sx={{ bgcolor: "rgba(255,255,255,0.2)", color: "white", fontWeight: 600, px: 1, py: 2.5 }}
+                />
+              </Stack>
+            </Stack>
+          </Box>
+        </Paper>
+      </Grow>
 
-            {/* Filters */}
-            <Box sx={{ p: 2.5, pb: 1 }}>
-              <Grid container spacing={1.5}>
-                <Grid item xs={12} sm={6} md={12}>
-                  <FormControl fullWidth size="small">
-                    <InputLabel>City</InputLabel>
-                    <Select name="city" value={filters.city} onChange={handleFilterChange} label="City">
-                      <MenuItem value="">All Cities</MenuItem>
-                      <MenuItem value="Delhi">Delhi</MenuItem>
-                      <MenuItem value="Mumbai">Mumbai</MenuItem>
-                      <MenuItem value="Bangalore">Bangalore</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Grid>
-                <Grid item xs={12} sm={6} md={12}>
-                  <FormControl fullWidth size="small">
-                    <InputLabel>Specialization</InputLabel>
-                    <Select name="specialization" value={filters.specialization} onChange={handleFilterChange} label="Specialization">
-                      <MenuItem value="">All Specializations</MenuItem>
-                      <MenuItem value="Cardiologist">Cardiologist</MenuItem>
-                      <MenuItem value="Dentist">Dentist</MenuItem>
-                      <MenuItem value="Orthopedic">Orthopedic</MenuItem>
-                      <MenuItem value="Dermatologist">Dermatologist</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Grid>
-                <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Search by name"
-                    name="name"
-                    value={filters.name}
-                    onChange={handleFilterChange}
-                    InputProps={{ startAdornment: <Search sx={{ mr: 1, color: "text.secondary", fontSize: 20 }} /> }}
-                  />
-                </Grid>
-              </Grid>
-            </Box>
+      <Grid container spacing={4}>
+        {/* Left Column - Doctor Selection */}
+        <Grid item xs={12} md={5} lg={5}>
+          <Fade in={true} timeout={800}>
+            <Paper elevation={0} sx={{ borderRadius: 4, border: "1px solid #e0e0e0", overflow: "hidden", boxShadow: "0 4px 20px rgba(0,0,0,0.03)" }}>
+              <Box sx={{ p: 3, pb: 2, display: "flex", alignItems: "center", gap: 1.5, borderBottom: "1px solid #f0f0f0", bgcolor: "#fafafa" }}>
+                <MedicalServices color="primary" sx={{ fontSize: 28 }} />
+                <Box>
+                  <Typography variant="h6" fontWeight={800} color="text.primary">
+                    Choose a Doctor
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Filter by city, specialty, or name
+                  </Typography>
+                </Box>
+              </Box>
 
-            {/* Doctor Cards */}
-            <Box sx={{ maxHeight: 520, overflowY: "auto", px: 2.5, pb: 2.5 }}>
-              <Stack spacing={1.5}>
-                {filteredDoctors.length > 0 ? (
-                  filteredDoctors.map((doctor) => {
-                    const isSelected = selectedDoctor === doctor.name;
-                    return (
-                      <Card
-                        key={doctor.name}
-                        variant="outlined"
-                        sx={{
-                          borderRadius: 3,
-                          borderColor: isSelected ? "#0d47a1" : "#e3f2fd",
-                          borderWidth: isSelected ? 2 : 1,
-                          boxShadow: isSelected ? "0 8px 24px rgba(13,71,161,0.18)" : "none",
-                          transition: "all 0.2s ease",
-                          '&:hover': {
-                            boxShadow: "0 8px 24px rgba(13,71,161,0.12)",
-                            transform: "translateY(-2px)",
-                          },
-                        }}
-                      >
-                        <CardActionArea onClick={() => handleDoctorChange(doctor.name)}>
-                          <CardContent sx={{ p: 2, display: "flex", gap: 1.5, alignItems: "center" }}>
-                            <Avatar
+              {/* Filters */}
+              <Box sx={{ p: 3, pb: 1 }}>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6} md={12}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel>City</InputLabel>
+                      <Select name="city" value={filters.city} onChange={handleFilterChange} label="City" sx={{ borderRadius: 2 }}>
+                        <MenuItem value="">All Cities</MenuItem>
+                        <MenuItem value="Delhi">Delhi</MenuItem>
+                        <MenuItem value="Mumbai">Mumbai</MenuItem>
+                        <MenuItem value="Bangalore">Bangalore</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12} sm={6} md={12}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel>Specialization</InputLabel>
+                      <Select name="specialization" value={filters.specialization} onChange={handleFilterChange} label="Specialization" sx={{ borderRadius: 2 }}>
+                        <MenuItem value="">All Specializations</MenuItem>
+                        <MenuItem value="Cardiologist">Cardiologist</MenuItem>
+                        <MenuItem value="Dentist">Dentist</MenuItem>
+                        <MenuItem value="Orthopedic">Orthopedic</MenuItem>
+                        <MenuItem value="Dermatologist">Dermatologist</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Search by name"
+                      name="name"
+                      value={filters.name}
+                      onChange={handleFilterChange}
+                      InputProps={{ startAdornment: <Search sx={{ mr: 1, color: "text.secondary", fontSize: 20 }} /> }}
+                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                    />
+                  </Grid>
+                </Grid>
+              </Box>
+
+              {/* Doctor Cards */}
+              <Box sx={{ maxHeight: 520, overflowY: "auto", px: 3, pb: 3, pt: 1 }}>
+                {loadingDoctors ? (
+                  <Stack spacing={2}>
+                    {[1, 2, 3].map((skeleton) => (
+                      <Skeleton key={skeleton} variant="rounded" height={100} sx={{ borderRadius: 3 }} />
+                    ))}
+                  </Stack>
+                ) : (
+                  <Stack spacing={2}>
+                    {filteredDoctors.length > 0 ? (
+                      filteredDoctors.map((doctor, index) => {
+                        const isSelected = selectedDoctor === doctor.name;
+                        return (
+                          <Grow in={true} timeout={(index + 1) * 250} key={doctor.name}>
+                            <Card
+                              variant="outlined"
                               sx={{
-                                width: 52,
-                                height: 52,
-                                bgcolor: isSelected ? "#0d47a1" : "#1976d2",
-                                fontSize: 18,
-                                fontWeight: 700,
+                                borderRadius: 3,
+                                borderColor: isSelected ? "primary.main" : "#e0e0e0",
+                                borderWidth: isSelected ? 2 : 1,
+                                boxShadow: isSelected ? "0 8px 24px rgba(25, 118, 210, 0.15)" : "none",
+                                transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                                '&:hover': {
+                                  boxShadow: "0 8px 24px rgba(0,0,0,0.08)",
+                                  transform: "translateY(-3px)",
+                                  borderColor: isSelected ? "primary.main" : "primary.light",
+                                },
                               }}
                             >
-                              {getInitials(doctor.name)}
-                            </Avatar>
-                            <Box sx={{ flex: 1, minWidth: 0 }}>
-                              <Typography variant="subtitle1" fontWeight={700} color={isSelected ? "primary.main" : "text.primary"}>
-                                {doctor.name}
-                              </Typography>
-                              <Typography variant="body2" color="text.secondary">
-                                {doctor.specialization}
-                              </Typography>
-                              <Stack direction="row" spacing={1} sx={{ mt: 0.5, flexWrap: "wrap" }}>
-                                <Chip
-                                  icon={<LocationOn sx={{ fontSize: 14 }} />}
-                                  label={doctor.city}
-                                  size="small"
-                                  variant="outlined"
-                                  sx={{ fontSize: 11, height: 22 }}
-                                />
-                                <Chip
-                                  icon={<AccessTime sx={{ fontSize: 14 }} />}
-                                  label={`${doctor.slotCapacity} slots`}
-                                  size="small"
-                                  variant="outlined"
-                                  color="secondary"
-                                  sx={{ fontSize: 11, height: 22 }}
-                                />
-                              </Stack>
-                            </Box>
-                            {isSelected && (
-                              <CheckCircle color="primary" sx={{ fontSize: 26 }} />
-                            )}
-                          </CardContent>
-                        </CardActionArea>
-                      </Card>
-                    );
-                  })
-                ) : (
-                  <Paper sx={{ p: 3, textAlign: "center", bgcolor: "#f8fbff" }}>
-                    <Typography color="text.secondary">No doctors match your filters.</Typography>
-                  </Paper>
+                              <CardActionArea onClick={() => handleDoctorChange(doctor.name)}>
+                                <CardContent sx={{ p: 2.5, display: "flex", gap: 2, alignItems: "center" }}>
+                                  <Avatar
+                                    sx={{
+                                      width: 56,
+                                      height: 56,
+                                      bgcolor: isSelected ? "primary.main" : "grey.300",
+                                      color: isSelected ? "white" : "grey.700",
+                                      fontSize: 20,
+                                      fontWeight: 800,
+                                      boxShadow: isSelected ? "0 4px 12px rgba(25,118,210,0.3)" : "none"
+                                    }}
+                                  >
+                                    {getInitials(doctor.name)}
+                                  </Avatar>
+                                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                                    <Typography variant="subtitle1" fontWeight={800} color={isSelected ? "primary.main" : "text.primary"}>
+                                      {doctor.name}
+                                    </Typography>
+                                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                                      {doctor.specialization}
+                                    </Typography>
+                                    <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 0.5 }}>
+                                      <Chip
+                                        icon={<LocationOn sx={{ fontSize: 14 }} />}
+                                        label={doctor.city}
+                                        size="small"
+                                        sx={{ fontSize: 11, bgcolor: "grey.100", fontWeight: 600 }}
+                                      />
+                                      <Chip
+                                        icon={<AccessTime sx={{ fontSize: 14 }} />}
+                                        label={`${doctor.slotCapacity} slots`}
+                                        size="small"
+                                        color={isSelected ? "primary" : "default"}
+                                        sx={{ fontSize: 11, fontWeight: 600 }}
+                                      />
+                                    </Stack>
+                                  </Box>
+                                  {isSelected && (
+                                    <Fade in>
+                                      <CheckCircle color="primary" sx={{ fontSize: 28 }} />
+                                    </Fade>
+                                  )}
+                                </CardContent>
+                              </CardActionArea>
+                            </Card>
+                          </Grow>
+                        );
+                      })
+                    ) : (
+                      <Fade in>
+                        <Paper sx={{ p: 4, textAlign: "center", bgcolor: "#fafafa", borderRadius: 3, border: "1px dashed #ccc" }}>
+                          <Person sx={{ fontSize: 48, color: "grey.400", mb: 1 }} />
+                          <Typography color="text.secondary" fontWeight={600}>No doctors match your filters.</Typography>
+                        </Paper>
+                      </Fade>
+                    )}
+                  </Stack>
                 )}
-              </Stack>
-            </Box>
-          </Paper>
+
+                {/* Pagination */}
+                {totalPages > 1 && (
+                  <Fade in={!loadingDoctors}>
+                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mt: 3, pt: 2, borderTop: "1px solid #f0f0f0" }}>
+                      <Button size="small" variant="outlined" onClick={handlePrevPage} disabled={currentPage === 1 || loadingDoctors} startIcon={<ArrowBack fontSize="small" />} sx={{ borderRadius: 2 }}>
+                        Prev
+                      </Button>
+                      <Typography variant="body2" color="text.secondary" fontWeight={700}>
+                        Page {currentPage} of {totalPages}
+                      </Typography>
+                      <Button size="small" variant="outlined" onClick={handleNextPage} disabled={currentPage === totalPages || loadingDoctors} endIcon={<ArrowForward fontSize="small" />} sx={{ borderRadius: 2 }}>
+                        Next
+                      </Button>
+                    </Box>
+                  </Fade>
+                )}
+              </Box>
+            </Paper>
+          </Fade>
         </Grid>
 
         {/* Right Column - Booking Form */}
         <Grid item xs={12} md={7} lg={7}>
-          <Paper elevation={0} sx={{ borderRadius: 3, border: "1px solid #e3f2fd", overflow: "hidden" }}>
-            <Box sx={{ p: 2.5, pb: 2, display: "flex", alignItems: "center", gap: 1, borderBottom: "1px solid #e3f2fd" }}>
-              <CalendarMonth color="primary" sx={{ fontSize: 26 }} />
-              <Box>
-                <Typography variant="h6" fontWeight={700} color="primary.main">
-                  Book Your Appointment
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Select a date and time slot to confirm
-                </Typography>
-              </Box>
-            </Box>
-
-            <Box sx={{ p: { xs: 2, md: 3 } }}>
-              {/* Selected doctor indicator */}
-              {selectedDoctorData ? (
-                <Fade in>
-                  <Box
-                    sx={{
-                      p: 2,
-                      mb: 2.5,
-                      borderRadius: 3,
-                      bgcolor: "#f8fbff",
-                      border: "1px solid #bbdefb",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 1.5,
-                    }}
-                  >
-                    <Avatar sx={{ bgcolor: "#0d47a1" }}>{getInitials(selectedDoctorData.name)}</Avatar>
-                    <Box sx={{ flex: 1 }}>
-                      <Typography variant="subtitle1" fontWeight={700} color="primary.main">
-                        {selectedDoctorData.name}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        {selectedDoctorData.specialization} • {selectedDoctorData.city}
-                      </Typography>
-                    </Box>
-                    <Chip icon={<Verified />} label="Selected" color="primary" size="small" />
-                  </Box>
-                </Fade>
-              ) : (
-                <Paper sx={{ p: 3, mb: 2.5, textAlign: "center", bgcolor: "#f8fbff", border: "1px dashed #90caf9" }}>
-                  <Person sx={{ fontSize: 40, color: "#90caf9" }} />
-                  <Typography color="text.secondary" sx={{ mt: 1 }}>
-                    Please select a doctor from the left panel to begin.
+          <Fade in={true} timeout={1000}>
+            <Paper elevation={0} sx={{ borderRadius: 4, border: "1px solid #e0e0e0", overflow: "hidden", boxShadow: "0 4px 20px rgba(0,0,0,0.03)", height: "100%" }}>
+              <Box sx={{ p: 3, pb: 2, display: "flex", alignItems: "center", gap: 1.5, borderBottom: "1px solid #f0f0f0", bgcolor: "#fafafa" }}>
+                <CalendarMonth color="primary" sx={{ fontSize: 28 }} />
+                <Box>
+                  <Typography variant="h6" fontWeight={800} color="text.primary">
+                    Book Your Appointment
                   </Typography>
-                </Paper>
-              )}
-
-              {/* Date Selection */}
-              <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1, color: "text.primary" }}>
-                Select Date
-              </Typography>
-              <TextField
-                fullWidth
-                label="Appointment date"
-                type="date"
-                InputLabelProps={{ shrink: true }}
-                value={selectedDate}
-                onChange={handleDateChange}
-                disabled={!selectedDoctorData}
-                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-              />
-
-              {selectedDoctorData && (
-                <Tooltip title={selectedDate ? formatCustomDate(selectedDate) : "Pick a date above"}>
-                  <Chip
-                    icon={<EventAvailable />}
-                    label={selectedDate ? formatCustomDate(selectedDate) : "No date selected"}
-                    color={selectedDate ? "success" : "default"}
-                    variant="outlined"
-                    sx={{ mt: 1.5 }}
-                  />
-                </Tooltip>
-              )}
-
-              {/* Time Slot Selection */}
-              <Box sx={{ mt: 3, mb: 1 }}>
-                <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1, color: "text.primary" }}>
-                  Select Time Slot
-                </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Select a date and time slot to confirm
+                  </Typography>
+                </Box>
               </Box>
 
-              {selectedDoctorData && selectedDate ? (
-                <Box sx={{ display: "grid", gridTemplateColumns: { xs: "repeat(2, 1fr)", sm: "repeat(3, 1fr)", md: "repeat(4, 1fr)" }, gap: 1.5 }}>
-                  {timeOptions.map((slot) => {
-                    const bookedCount = bookings.filter(
-                      (booking) => booking.doctor === selectedDoctorData.name && booking.date === selectedDate && booking.time === slot.label
-                    ).length;
-                    const remaining = Math.max(0, slot.capacity - bookedCount);
-                    const isSelectedTime = selectedTime === slot.label;
-                    const disabled = remaining === 0 || isSlotDisabled(slot);
+              <Box sx={{ p: { xs: 3, md: 4 } }}>
+                {selectedDoctorData ? (
+                  <Grow in>
+                    <Box sx={{ p: 2.5, mb: 3, borderRadius: 3, bgcolor: "#e3f2fd", border: "1px solid #bbdefb", display: "flex", alignItems: "center", gap: 2 }}>
+                      <Avatar sx={{ bgcolor: "primary.main", width: 56, height: 56, fontWeight: 800 }}>{getInitials(selectedDoctorData.name)}</Avatar>
+                      <Box sx={{ flex: 1 }}>
+                        <Typography variant="h6" fontWeight={800} color="primary.dark">
+                          {selectedDoctorData.name}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" fontWeight={500}>
+                          {selectedDoctorData.specialization} • {selectedDoctorData.city}
+                        </Typography>
+                      </Box>
+                      <Chip icon={<Verified />} label="Selected" color="primary" variant="filled" />
+                    </Box>
+                  </Grow>
+                ) : (
+                  <Paper sx={{ p: 4, mb: 4, textAlign: "center", bgcolor: "#fafafa", border: "2px dashed #e0e0e0", borderRadius: 3 }}>
+                    <MedicalServices sx={{ fontSize: 48, color: "grey.400", mb: 1 }} />
+                    <Typography color="text.secondary" fontWeight={600}>
+                      Please select a doctor from the list to begin scheduling.
+                    </Typography>
+                  </Paper>
+                )}
 
-                    return (
+                <Typography variant="subtitle1" fontWeight={800} sx={{ mb: 1.5, color: "text.primary" }}>
+                  1. Select Date
+                </Typography>
+                <TextField
+                  fullWidth
+                  type="date"
+                  InputLabelProps={{ shrink: true }}
+                  value={selectedDate}
+                  onChange={handleDateChange}
+                  disabled={!selectedDoctorData}
+                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3, bgcolor: "white" } }}
+                />
+
+                {selectedDoctorData && selectedDate && (
+                  <Grow in>
+                    <Box sx={{ mt: 4, mb: 2 }}>
+                      <Typography variant="subtitle1" fontWeight={800} sx={{ mb: 2, color: "text.primary" }}>
+                        2. Select Time Slot
+                      </Typography>
+                      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "repeat(2, 1fr)", sm: "repeat(3, 1fr)" }, gap: 2 }}>
+                        {timeOptions.map((slot) => {
+                          const bookedCount = bookings.filter(
+                            (booking) => booking.doctor === selectedDoctorData.name && booking.date === selectedDate && booking.time === slot.label
+                          ).length;
+                          const remaining = Math.max(0, slot.capacity - bookedCount);
+                          const isSelectedTime = selectedTime === slot.label;
+                          const disabled = remaining === 0 || isSlotDisabled(slot);
+
+                          return (
+                            <Button
+                              key={slot.label}
+                              variant={isSelectedTime ? "contained" : "outlined"}
+                              color="primary"
+                              disabled={disabled}
+                              onClick={() => handleTimeChange(slot.label)}
+                              sx={{
+                                borderRadius: 3,
+                                py: 1.5,
+                                flexDirection: "column",
+                                gap: 0.5,
+                                textTransform: "none",
+                                borderWidth: isSelectedTime ? 2 : 1,
+                                borderColor: isSelectedTime ? "primary.main" : "grey.300",
+                                '&:hover': {
+                                  borderWidth: 2,
+                                  borderColor: "primary.main",
+                                  bgcolor: isSelectedTime ? "primary.dark" : "primary.50",
+                                  transform: disabled ? "none" : "scale(1.02)",
+                                },
+                                transition: "all 0.2s",
+                              }}
+                            >
+                              <Stack direction="row" spacing={0.5} alignItems="center">
+                                <AccessTime sx={{ fontSize: 16 }} />
+                                <Typography variant="body1" fontWeight={700} color={isSelectedTime ? "white" : "text.primary"}>
+                                  {slot.label}
+                                </Typography>
+                              </Stack>
+                              <Typography variant="caption" color={isSelectedTime ? "rgba(255,255,255,0.9)" : remaining > 0 ? "success.main" : "error.main"} fontWeight={700}>
+                                {remaining > 0 ? `${remaining} left` : "Full"}
+                              </Typography>
+                            </Button>
+                          );
+                        })}
+                      </Box>
+                    </Box>
+                  </Grow>
+                )}
+
+                {message && (
+                  <Grow in>
+                    <Alert severity={messageType} sx={{ mt: 3, borderRadius: 3, fontWeight: 600, alignItems: "center" }} icon={messageType === "success" && bookingSuccess ? <CheckCircle /> : undefined}>
+                      {message}
+                    </Alert>
+                  </Grow>
+                )}
+
+                {(selectedDoctorData || selectedDate || selectedTime) && (
+                  <Grow in timeout={800}>
+                    <Paper elevation={0} sx={{ mt: 4, p: 3, borderRadius: 4, border: "1px solid #e0e0e0", bgcolor: "white", boxShadow: "0 10px 30px rgba(0,0,0,0.05)" }}>
+                      <Typography variant="h6" fontWeight={800} color="text.primary" sx={{ mb: 2 }}>
+                        Booking Summary
+                      </Typography>
+                      <Stack spacing={2} divider={<Divider flexItem />}>
+                        <Grid container alignItems="center">
+                          <Grid item xs={1}><Person color="primary" /></Grid>
+                          <Grid item xs={3}><Typography variant="body2" color="text.secondary" fontWeight={600}>Doctor</Typography></Grid>
+                          <Grid item xs={8}><Typography variant="body1" fontWeight={700}>{selectedDoctorData?.name || "—"}</Typography></Grid>
+                        </Grid>
+                        <Grid container alignItems="center">
+                          <Grid item xs={1}><CalendarMonth color="primary" /></Grid>
+                          <Grid item xs={3}><Typography variant="body2" color="text.secondary" fontWeight={600}>Date</Typography></Grid>
+                          <Grid item xs={8}><Typography variant="body1" fontWeight={700}>{selectedDate ? formatCustomDate(selectedDate) : "—"}</Typography></Grid>
+                        </Grid>
+                        <Grid container alignItems="center">
+                          <Grid item xs={1}><Schedule color="primary" /></Grid>
+                          <Grid item xs={3}><Typography variant="body2" color="text.secondary" fontWeight={600}>Time</Typography></Grid>
+                          <Grid item xs={8}><Typography variant="body1" fontWeight={700}>{selectedTime || "—"}</Typography></Grid>
+                        </Grid>
+                      </Stack>
+
                       <Button
-                        key={slot.label}
-                        variant={isSelectedTime ? "contained" : "outlined"}
-                        color={isSelectedTime ? "primary" : "primary"}
-                        disabled={disabled}
-                        onClick={() => handleTimeChange(slot.label)}
+                        variant="contained"
+                        size="large"
+                        fullWidth
+                        onClick={handleSubmit}
+                        disabled={!selectedTime || availableSlots === 0}
+                        endIcon={bookingSuccess ? <CheckCircle /> : <ArrowForward />}
                         sx={{
-                          borderRadius: 2,
-                          py: 1,
-                          flexDirection: "column",
-                          gap: 0.3,
+                          mt: 4,
+                          py: 1.8,
+                          borderRadius: 3,
+                          fontWeight: 800,
+                          fontSize: "1.1rem",
                           textTransform: "none",
-                          borderColor: isSelectedTime ? "#0d47a1" : "#90caf9",
-                          bgcolor: isSelectedTime ? "#0d47a1" : "transparent",
+                          background: "linear-gradient(135deg, #1e88e5 0%, #0d47a1 100%)",
+                          boxShadow: "0 8px 24px rgba(25, 118, 210, 0.3)",
                           '&:hover': {
-                            bgcolor: isSelectedTime ? "#0d47a1" : "rgba(13,71,161,0.06)",
+                            background: "linear-gradient(135deg, #1565c0 0%, #0a2756 100%)",
+                            boxShadow: "0 12px 28px rgba(25, 118, 210, 0.4)",
+                            transform: "translateY(-2px)"
                           },
+                          transition: "all 0.2s"
                         }}
                       >
-                        <Stack direction="row" spacing={0.5} alignItems="center">
-                          <AccessTime sx={{ fontSize: 15 }} />
-                          <Typography variant="body2" fontWeight={600} color={isSelectedTime ? "white" : "text.primary"}>
-                            {slot.label}
-                          </Typography>
-                        </Stack>
-                        <Typography variant="caption" color={isSelectedTime ? "rgba(255,255,255,0.85)" : remaining > 0 ? "success.main" : "error.main"} fontWeight={600}>
-                          {remaining > 0 ? `${remaining} left` : "Full"}
-                        </Typography>
+                        {bookingSuccess ? "Booking Confirmed!" : "Confirm Appointment"}
                       </Button>
-                    );
-                  })}
-                </Box>
-              ) : (
-                <Paper sx={{ p: 3, textAlign: "center", bgcolor: "#f8fbff", border: "1px dashed #90caf9" }}>
-                  <AccessTime sx={{ fontSize: 36, color: "#90caf9" }} />
-                  <Typography color="text.secondary" sx={{ mt: 1 }}>
-                    {!selectedDoctorData ? "Select a doctor to view available slots." : "Select a date to view available time slots."}
-                  </Typography>
-                </Paper>
-              )}
-
-              {/* Feedback message */}
-              {message && (
-                <Fade in>
-                  <Alert
-                    severity={messageType}
-                    sx={{ mt: 2.5, borderRadius: 2 }}
-                    icon={messageType === "success" && bookingSuccess ? <CheckCircle fontSize="inherit" /> : undefined}
-                  >
-                    {message}
-                  </Alert>
-                </Fade>
-              )}
-
-              {/* Booking Summary */}
-              {(selectedDoctorData || selectedDate || selectedTime) && (
-                <Paper
-                  elevation={0}
-                  sx={{
-                    mt: 2.5,
-                    p: 2.5,
-                    borderRadius: 3,
-                    border: "1px solid #bbdefb",
-                    bgcolor: "#f8fbff",
-                  }}
-                >
-                  <Typography variant="subtitle1" fontWeight={700} color="primary.main" sx={{ mb: 1.5 }}>
-                    Booking Summary
-                  </Typography>
-                  <Stack spacing={1}>
-                    <Stack direction="row" spacing={1} alignItems="center">
-                      <Person sx={{ fontSize: 18, color: "primary.main" }} />
-                      <Typography variant="body2" color="text.secondary" sx={{ width: 90 }}>
-                        Doctor:
-                      </Typography>
-                      <Typography variant="body2" fontWeight={600}>
-                        {selectedDoctorData?.name || "—"}
-                      </Typography>
-                    </Stack>
-                    <Stack direction="row" spacing={1} alignItems="center">
-                      <CalendarMonth sx={{ fontSize: 18, color: "primary.main" }} />
-                      <Typography variant="body2" color="text.secondary" sx={{ width: 90 }}>
-                        Date:
-                      </Typography>
-                      <Typography variant="body2" fontWeight={600}>
-                        {selectedDate ? formatCustomDate(selectedDate) : "—"}
-                      </Typography>
-                    </Stack>
-                    <Stack direction="row" spacing={1} alignItems="center">
-                      <Schedule sx={{ fontSize: 18, color: "primary.main" }} />
-                      <Typography variant="body2" color="text.secondary" sx={{ width: 90 }}>
-                        Time:
-                      </Typography>
-                      <Typography variant="body2" fontWeight={600}>
-                        {selectedTime || "—"}
-                      </Typography>
-                    </Stack>
-                    <Stack direction="row" spacing={1} alignItems="center">
-                      <Groups sx={{ fontSize: 18, color: "primary.main" }} />
-                      <Typography variant="body2" color="text.secondary" sx={{ width: 90 }}>
-                        Availability:
-                      </Typography>
-                      <Chip
-                        label={availableSlots > 0 ? `${availableSlots} slot${availableSlots > 1 ? "s" : ""} available` : "Not selected"}
-                        color={availableSlots > 0 ? "success" : "default"}
-                        size="small"
-                        variant="outlined"
-                      />
-                    </Stack>
-                  </Stack>
-
-                  <Divider sx={{ my: 2 }} />
-
-                  <Button
-                    variant="contained"
-                    fullWidth
-                    onClick={handleSubmit}
-                    disabled={!selectedTime || availableSlots === 0}
-                    endIcon={bookingSuccess ? <CheckCircle /> : <ArrowForward />}
-                    sx={{
-                      py: 1.4,
-                      borderRadius: 2,
-                      fontWeight: 700,
-                      textTransform: "none",
-                      background: "linear-gradient(135deg, #0d47a1 0%, #1976d2 100%)",
-                      boxShadow: "0 8px 20px rgba(25, 118, 210, 0.25)",
-                      '&:hover': {
-                        background: "linear-gradient(135deg, #08306b 0%, #1565c0 100%)",
-                      },
-                    }}
-                  >
-                    {bookingSuccess ? "Booked Successfully" : "Book Appointment"}
-                  </Button>
-                </Paper>
-              )}
-
-              {/* Back to top helper */}
-              {selectedDoctor && (
-                <Box sx={{ mt: 2, textAlign: "center" }}>
-                  <Button
-                    startIcon={<ArrowBack />}
-                    onClick={() => handleDoctorChange("")}
-                    sx={{ textTransform: "none", color: "text.secondary" }}
-                  >
-                    Change doctor
-                  </Button>
-                </Box>
-              )}
-            </Box>
-          </Paper>
+                    </Paper>
+                  </Grow>
+                )}
+              </Box>
+            </Paper>
+          </Fade>
         </Grid>
       </Grid>
     </Container>

@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../store/auth";
 import { API_URL } from "../config";
 import {
-  Container,
   Paper,
   Typography,
   Table,
@@ -27,6 +26,10 @@ import {
   Box,
   InputAdornment,
   Tooltip,
+  Snackbar,
+  Fade,
+  alpha,
+  useTheme,
 } from "@mui/material";
 import {
   Delete,
@@ -39,13 +42,16 @@ import {
 } from "@mui/icons-material";
 
 const Adminusers = () => {
+  const theme = useTheme();
   const { authorizationtoken } = useAuth();
+  
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [roleFilter, setRoleFilter] = useState("All");
   const [search, setSearch] = useState("");
-  const [message, setMessage] = useState("");
-  const [messageType, setMessageType] = useState("info");
+  
+  // Notification State
+  const [snackbar, setSnackbar] = useState({ open: false, message: "", type: "info" });
 
   // Edit dialog state
   const [editUser, setEditUser] = useState(null);
@@ -60,6 +66,14 @@ const Adminusers = () => {
   // Delete confirmation
   const [deleteUser, setDeleteUser] = useState(null);
   const [openDelete, setOpenDelete] = useState(false);
+
+  const showMessage = (message, type = "info") => {
+    setSnackbar({ open: true, message, type });
+  };
+
+  const handleCloseSnackbar = () => {
+    setSnackbar((prev) => ({ ...prev, open: false }));
+  };
 
   const getAllUsersData = async () => {
     try {
@@ -80,6 +94,7 @@ const Adminusers = () => {
     } catch (error) {
       console.log(error);
       setUsers([]);
+      showMessage("Failed to fetch users.", "error");
     } finally {
       setLoading(false);
     }
@@ -116,18 +131,15 @@ const Adminusers = () => {
         }
       );
       if (response.ok) {
-        setMessageType("success");
-        setMessage("User updated successfully!");
+        showMessage("User updated successfully!", "success");
         setOpenEdit(false);
         getAllUsersData();
       } else {
-        setMessageType("error");
-        setMessage("Failed to update user.");
+        showMessage("Failed to update user.", "error");
       }
     } catch (error) {
       console.log(error);
-      setMessageType("error");
-      setMessage("Failed to update user.");
+      showMessage("Failed to update user.", "error");
     }
   };
 
@@ -147,252 +159,278 @@ const Adminusers = () => {
         }
       );
       if (response.ok) {
-        setMessageType("success");
-        setMessage("User deleted successfully!");
+        showMessage("User deleted successfully!", "success");
         setOpenDelete(false);
         getAllUsersData();
       } else {
-        setMessageType("error");
-        setMessage("Failed to delete user.");
+        showMessage("Failed to delete user.", "error");
       }
     } catch (error) {
       console.log(error);
-      setMessageType("error");
-      setMessage("Failed to delete user.");
+      showMessage("Failed to delete user.", "error");
     }
   };
 
-  const getRoleIcon = (role) => {
-    const r = (role || "").toLowerCase();
-    if (r === "doctor") return <MedicalServices sx={{ fontSize: 16 }} />;
-    return <Person sx={{ fontSize: 16 }} />;
-  };
-
-  const getRoleColor = (role) => {
-    const r = (role || "").toLowerCase();
-    if (r === "doctor") return "secondary";
-    return "primary";
+  // --- UI Helpers ---
+  const getRoleBadge = (role) => {
+    const isDoc = (role || "").toLowerCase() === "doctor";
+    return (
+      <Chip
+        icon={isDoc ? <MedicalServices sx={{ fontSize: 16 }} /> : <Person sx={{ fontSize: 16 }} />}
+        label={role || 'User'}
+        size="small"
+        sx={{
+          bgcolor: isDoc ? alpha("#00A76F", 0.16) : alpha("#1976D2", 0.16),
+          color: isDoc ? "#00A76F" : "#1976D2",
+          fontWeight: 700,
+          borderRadius: "6px",
+          "& .MuiChip-icon": { color: "inherit" }
+        }}
+      />
+    );
   };
 
   return (
-    <Container maxWidth="xl" sx={{ py: 4, px: { xs: 2, md: 4 } }}>
-      <Paper
-        elevation={0}
-        sx={{
-          p: { xs: 3, md: 4 },
-          borderRadius: 4,
-          mb: 3,
-          background: "linear-gradient(135deg, #0d47a1 0%, #1976d2 100%)",
-          color: "white",
-        }}
-      >
-        <Typography variant="h4" sx={{ fontWeight: 800 }}>
-          Manage Users
-        </Typography>
-        <Typography variant="body1" sx={{ opacity: 0.95, mt: 0.5 }}>
-          View, edit and manage all registered patients and doctors.
-        </Typography>
-      </Paper>
+    <Fade in={true} timeout={800}>
+      <Box sx={{ flexGrow: 1, minHeight: "100vh", bgcolor: "#F4F6F8", pt: 4, pb: 8, px: { xs: 2, md: 4, xl: 8 } }}>
+        
+        {/* Floating Snackbar for Notifications */}
+        <Snackbar open={snackbar.open} autoHideDuration={5000} onClose={handleCloseSnackbar} anchorOrigin={{ vertical: 'top', horizontal: 'right' }}>
+          <Alert onClose={handleCloseSnackbar} severity={snackbar.type} sx={{ width: '100%', borderRadius: 2, boxShadow: 3 }}>
+            {snackbar.message}
+          </Alert>
+        </Snackbar>
 
-      {message && (
-        <Alert severity={messageType} sx={{ mb: 3, borderRadius: 2 }} onClose={() => setMessage("")}>
-          {message}
-        </Alert>
-      )}
+        {/* Header Section */}
+        <Box sx={{ mb: 5, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Box>
+            <Typography variant="h3" sx={{ fontWeight: 800, color: "#212B36", mb: 1 }}>
+              Manage Users
+            </Typography>
+            <Typography variant="body1" sx={{ color: "#637381" }}>
+              View, edit, and manage all registered patients and doctors across the platform.
+            </Typography>
+          </Box>
+        </Box>
 
-      {/* Filters */}
-      <Paper elevation={2} sx={{ p: 2.5, mb: 3, borderRadius: 3 }}>
-        <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems={{ xs: "stretch", md: "center" }}>
+        {/* Filters & Actions Card */}
+        <Paper 
+          sx={{ 
+            p: 3, 
+            mb: 4, 
+            borderRadius: "16px", 
+            boxShadow: "rgba(145, 158, 171, 0.2) 0px 0px 2px 0px, rgba(145, 158, 171, 0.12) 0px 12px 24px -4px",
+            display: 'flex', 
+            flexDirection: { xs: 'column', md: 'row' },
+            gap: 3,
+            alignItems: 'center'
+          }}
+        >
           <TextField
-            label="Search users"
+            fullWidth
+            placeholder="Search by name, email or phone..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            sx={{ flex: 1 }}
-            size="small"
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
-                  <Search />
+                  <Search sx={{ color: '#919EAB' }} />
                 </InputAdornment>
               ),
+              sx: { borderRadius: '10px', bgcolor: '#F4F6F8', '& fieldset': { border: 'none' } }
             }}
-            placeholder="Search by name, email or phone"
           />
           <TextField
             select
-            label="Filter by Role"
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value)}
-            sx={{ minWidth: 200 }}
-            size="small"
+            sx={{ 
+              minWidth: { xs: '100%', md: 240 },
+              '& .MuiOutlinedInput-root': { borderRadius: '10px', bgcolor: '#F4F6F8', '& fieldset': { border: 'none' } } 
+            }}
           >
             <MenuItem value="All">All Roles</MenuItem>
             <MenuItem value="Patient">Patients</MenuItem>
             <MenuItem value="Doctor">Doctors</MenuItem>
           </TextField>
-          <Tooltip title="Refresh">
-            <IconButton onClick={getAllUsersData} color="primary">
+          
+          <Tooltip title="Refresh Data">
+            <IconButton 
+              onClick={getAllUsersData} 
+              sx={{ 
+                bgcolor: alpha("#1976D2", 0.1), 
+                color: "#1976D2", 
+                borderRadius: '10px',
+                p: 1.5,
+                '&:hover': { bgcolor: alpha("#1976D2", 0.2) }
+              }}
+            >
               <Refresh />
             </IconButton>
           </Tooltip>
-        </Stack>
-      </Paper>
+        </Paper>
 
-      {/* Users Table */}
-      <Paper elevation={2} sx={{ borderRadius: 3, overflow: "hidden" }}>
-        <TableContainer>
-          <Table>
-            <TableHead>
-              <TableRow sx={{ bgcolor: "#0d47a1" }}>
-                <TableCell sx={{ color: "white", fontWeight: 700 }}>User</TableCell>
-                <TableCell sx={{ color: "white", fontWeight: 700 }}>Email</TableCell>
-                <TableCell sx={{ color: "white", fontWeight: 700 }}>Role</TableCell>
-                <TableCell sx={{ color: "white", fontWeight: 700 }}>Phone</TableCell>
-                <TableCell sx={{ color: "white", fontWeight: 700 }} align="center">
-                  Actions
-                </TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {loading ? (
+        {/* Users Data Table */}
+        <Paper sx={{ borderRadius: "16px", boxShadow: "rgba(145, 158, 171, 0.2) 0px 0px 2px 0px, rgba(145, 158, 171, 0.12) 0px 12px 24px -4px", overflow: "hidden" }}>
+          <TableContainer>
+            <Table sx={{ minWidth: 800 }}>
+              <TableHead sx={{ bgcolor: alpha("#919EAB", 0.08) }}>
                 <TableRow>
-                  <TableCell colSpan={5} align="center" sx={{ py: 6 }}>
-                    <CircularProgress />
-                  </TableCell>
+                  <TableCell sx={{ color: "#637381", fontWeight: 700, borderBottom: 'none' }}>USER DETAILS</TableCell>
+                  <TableCell sx={{ color: "#637381", fontWeight: 700, borderBottom: 'none' }}>CONTACT</TableCell>
+                  <TableCell sx={{ color: "#637381", fontWeight: 700, borderBottom: 'none' }}>ROLE</TableCell>
+                  <TableCell sx={{ color: "#637381", fontWeight: 700, borderBottom: 'none', textAlign: 'center' }}>ACTIONS</TableCell>
                 </TableRow>
-              ) : users.length > 0 ? (
-                users.map((user) => (
-                  <TableRow key={user._id} hover>
-                    <TableCell>
-                      <Stack direction="row" spacing={1.5} alignItems="center">
-                        <Avatar sx={{ bgcolor: "#1976d2", width: 40, height: 40 }}>
-                          {(user.username || "?").charAt(0).toUpperCase()}
-                        </Avatar>
-                        <Box>
-                          <Typography variant="subtitle2" fontWeight={600}>
-                            {user.username}
-                          </Typography>
-                          {user.isAdmin && (
-                            <Chip
-                              icon={<AdminPanelSettings sx={{ fontSize: 14 }} />}
-                              label="Admin"
-                              size="small"
-                              color="error"
-                              variant="outlined"
-                              sx={{ height: 20, fontSize: 11 }}
-                            />
-                          )}
-                        </Box>
-                      </Stack>
-                    </TableCell>
-                    <TableCell>{user.email}</TableCell>
-                    <TableCell>
-                      <Chip
-                        icon={getRoleIcon(user.role)}
-                        label={user.role}
-                        color={getRoleColor(user.role)}
-                        variant="outlined"
-                        size="small"
-                      />
-                    </TableCell>
-                    <TableCell>{user.phone}</TableCell>
-                    <TableCell align="center">
-                      <Stack direction="row" spacing={1} justifyContent="center">
-                        <Tooltip title="Edit user">
-                          <IconButton color="primary" onClick={() => handleOpenEdit(user)} size="small">
-                            <Edit />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Delete user">
-                          <IconButton
-                            color="error"
-                            onClick={() => handleOpenDelete(user)}
-                            disabled={user.isAdmin}
-                            size="small"
-                          >
-                            <Delete />
-                          </IconButton>
-                        </Tooltip>
-                      </Stack>
+              </TableHead>
+              <TableBody>
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={4} align="center" sx={{ py: 10 }}>
+                      <CircularProgress sx={{ color: '#1976D2' }} />
+                      <Typography variant="body2" sx={{ mt: 2, color: "#637381", fontWeight: 600 }}>Loading Users...</Typography>
                     </TableCell>
                   </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={5} align="center" sx={{ py: 6 }}>
-                    <Typography color="text.secondary">No users found.</Typography>
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </Paper>
+                ) : users.length > 0 ? (
+                  users.map((user) => (
+                    <TableRow key={user._id} hover sx={{ '&:last-child td, &:last-child th': { border: 0 } }}>
+                      <TableCell>
+                        <Stack direction="row" spacing={2} alignItems="center">
+                          <Avatar sx={{ bgcolor: alpha("#1976D2", 0.12), color: "#1976D2", fontWeight: 700, width: 48, height: 48 }}>
+                            {(user.username || "?").charAt(0).toUpperCase()}
+                          </Avatar>
+                          <Box>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "#212B36" }}>
+                              {user.username}
+                            </Typography>
+                            {user.isAdmin && (
+                              <Chip
+                                icon={<AdminPanelSettings sx={{ fontSize: 14 }} />}
+                                label="Administrator"
+                                size="small"
+                                sx={{ height: 22, fontSize: 11, mt: 0.5, bgcolor: alpha("#FF5630", 0.16), color: "#FF5630", fontWeight: 700 }}
+                              />
+                            )}
+                          </Box>
+                        </Stack>
+                      </TableCell>
+                      
+                      <TableCell>
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: "#212B36" }}>{user.email}</Typography>
+                        <Typography variant="caption" sx={{ color: "#919EAB" }}>{user.phone || "No phone provided"}</Typography>
+                      </TableCell>
+                      
+                      <TableCell>{getRoleBadge(user.role)}</TableCell>
+                      
+                      <TableCell align="center">
+                        <Stack direction="row" spacing={1} justifyContent="center">
+                          <Tooltip title="Edit Profile">
+                            <IconButton 
+                              onClick={() => handleOpenEdit(user)} 
+                              sx={{ color: '#637381', bgcolor: alpha("#919EAB", 0.08), '&:hover': { color: '#1976D2', bgcolor: alpha("#1976D2", 0.12) } }}
+                            >
+                              <Edit fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title={user.isAdmin ? "Cannot delete admin" : "Delete User"}>
+                            <span>
+                              <IconButton
+                                onClick={() => handleOpenDelete(user)}
+                                disabled={user.isAdmin}
+                                sx={{ color: '#637381', bgcolor: alpha("#919EAB", 0.08), '&:hover': { color: '#FF5630', bgcolor: alpha("#FF5630", 0.12) } }}
+                              >
+                                <Delete fontSize="small" />
+                              </IconButton>
+                            </span>
+                          </Tooltip>
+                        </Stack>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={4} align="center" sx={{ py: 8 }}>
+                      <Typography variant="h6" color="#919EAB">No users found matching your criteria.</Typography>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Paper>
 
-      {/* Edit Dialog */}
-      <Dialog open={openEdit} onClose={() => setOpenEdit(false)} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ fontWeight: 700 }}>Edit User</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ mt: 1 }}>
-            <TextField
-              fullWidth
-              label="Username"
-              value={editForm.username}
-              onChange={(e) => setEditForm({ ...editForm, username: e.target.value })}
-            />
-            <TextField
-              fullWidth
-              label="Email"
-              value={editForm.email}
-              onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-            />
-            <TextField
-              fullWidth
-              label="Phone"
-              value={editForm.phone}
-              onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
-            />
-            <TextField
-              fullWidth
-              select
-              label="Role"
-              value={editForm.role}
-              onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}
+        {/* --- Edit Dialog --- */}
+        <Dialog open={openEdit} onClose={() => setOpenEdit(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: '16px', p: 1 } }}>
+          <DialogTitle sx={{ fontWeight: 800, color: "#212B36", pb: 1 }}>Edit User Profile</DialogTitle>
+          <DialogContent>
+            <Stack spacing={3} sx={{ mt: 2 }}>
+              <TextField
+                fullWidth
+                label="Username"
+                value={editForm.username}
+                onChange={(e) => setEditForm({ ...editForm, username: e.target.value })}
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: '10px' } }}
+              />
+              <TextField
+                fullWidth
+                label="Email Address"
+                value={editForm.email}
+                onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: '10px' } }}
+              />
+              <TextField
+                fullWidth
+                label="Phone Number"
+                value={editForm.phone}
+                onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: '10px' } }}
+              />
+              <TextField
+                fullWidth
+                select
+                label="Assigned Role"
+                value={editForm.role}
+                onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: '10px' } }}
+              >
+                <MenuItem value="Patient">Patient</MenuItem>
+                <MenuItem value="Doctor">Doctor</MenuItem>
+              </TextField>
+            </Stack>
+          </DialogContent>
+          <DialogActions sx={{ p: 3, pt: 0 }}>
+            <Button onClick={() => setOpenEdit(false)} sx={{ color: "#637381", fontWeight: 700 }}>Cancel</Button>
+            <Button variant="contained" onClick={handleSaveEdit} sx={{ borderRadius: '8px', fontWeight: 700, px: 3, boxShadow: "0 8px 16px 0 rgba(25, 118, 210, 0.24)" }}>
+              Save Changes
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* --- Delete Confirmation Dialog --- */}
+        <Dialog open={openDelete} onClose={() => setOpenDelete(false)} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: '16px', p: 1 } }}>
+          <DialogTitle sx={{ fontWeight: 800, color: "#FF5630", pb: 1 }}>
+            Confirm Deletion
+          </DialogTitle>
+          <DialogContent>
+            <Typography sx={{ color: "#637381", lineHeight: 1.6 }}>
+              Are you sure you want to permanently delete <strong>{deleteUser?.username}</strong>? 
+              This action cannot be undone and will also remove their profile and active subscriptions.
+            </Typography>
+          </DialogContent>
+          <DialogActions sx={{ p: 3, pt: 0 }}>
+            <Button onClick={() => setOpenDelete(false)} sx={{ color: "#637381", fontWeight: 700 }}>Cancel</Button>
+            <Button 
+              variant="contained" 
+              color="error" 
+              onClick={handleConfirmDelete} 
+              sx={{ borderRadius: '8px', fontWeight: 700, px: 3, bgcolor: "#FF5630", boxShadow: "0 8px 16px 0 rgba(255, 86, 48, 0.24)", '&:hover': { bgcolor: '#B71D18' } }}
             >
-              <MenuItem value="Patient">Patient</MenuItem>
-              <MenuItem value="Doctor">Doctor</MenuItem>
-            </TextField>
-          </Stack>
-        </DialogContent>
-        <DialogActions sx={{ p: 3, pt: 0 }}>
-          <Button onClick={() => setOpenEdit(false)}>Cancel</Button>
-          <Button variant="contained" color="primary" onClick={handleSaveEdit}>
-            Save Changes
-          </Button>
-        </DialogActions>
-      </Dialog>
+              Delete User
+            </Button>
+          </DialogActions>
+        </Dialog>
 
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={openDelete} onClose={() => setOpenDelete(false)} maxWidth="xs" fullWidth>
-        <DialogTitle sx={{ fontWeight: 700, color: "error.main" }}>
-          Delete User
-        </DialogTitle>
-        <DialogContent>
-          <Typography>
-            Are you sure you want to delete{" "}
-            <strong>{deleteUser?.username}</strong>? This action cannot be
-            undone and will also remove their doctor profile and subscription if
-            applicable.
-          </Typography>
-        </DialogContent>
-        <DialogActions sx={{ p: 3, pt: 0 }}>
-          <Button onClick={() => setOpenDelete(false)}>Cancel</Button>
-          <Button variant="contained" color="error" onClick={handleConfirmDelete}>
-            Delete
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Container>
+      </Box>
+    </Fade>
   );
 };
 

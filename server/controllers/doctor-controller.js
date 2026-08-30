@@ -10,21 +10,16 @@ const doctorprofile = async (req, res) => {
   try {
     const responce = req.body;
 
-    // Link to the authenticated user if header token present
-    let userId = null;
-    if (req.userID) {
-      userId = req.userID;
-    } else if (req.body.userId) {
-      userId = req.body.userId;
+    // Prioritize the authenticated user token to prevent spoofing
+    const userId = req.userID || req.body.userId;
+    
+    if (!userId) {
+      return res.status(401).json({ msg: "User ID is required" });
     }
 
-    const payload = { ...responce };
-    if (userId) payload.userId = userId;
+    const payload = { ...responce, userId };
 
-    // If a doctor profile already exists for this user, update it
-    const existing = userId
-      ? await Doctor.findOne({ userId })
-      : null;
+    const existing = await Doctor.findOne({ userId });
 
     let doctor;
     if (existing) {
@@ -38,15 +33,66 @@ const doctorprofile = async (req, res) => {
     return res.status(200).json(doctor);
   } catch (error) {
     console.log(error);
-    return res.status(500).json({ msg: "Internal server error", error });
+    return res.status(500).json({ msg: "Internal server error", error: error.message });
   }
 };
 
 // Get all doctors (only those with active subscription are bookable)
+// const getAllDoctors = async (req, res) => {
+//   try {
+//     const onlyActive =
+//       req.query.active === "true" || req.query.subscribed === "true";
+
+//     const filter = onlyActive
+//       ? {
+//           $or: [
+//             { subscriptionStatus: "Active" },
+//             { subscriptionStatus: { $exists: false } },
+//           ],
+//         }
+//       : {};
+
+//     // Push the admin filtering to the database level
+//     const doctors = await Doctor.find(filter)
+//       .populate({
+//         path: "userId",
+//         select: "username name email role isAdmin",
+//         match: { 
+//           isAdmin: { $ne: true }, 
+//           role: { $nin: ["admin", "Admin"] } 
+//         }
+//       })
+//       .lean(); // Returns plain JS objects for much faster processing
+
+//     const enriched = doctors
+//       .filter((doc) => doc.userId !== null) // Drops docs where userId failed the match criteria
+//       .map((doc) => {
+//         const linkedUser = doc.userId;
+//         let name = doc.name || linkedUser?.name || linkedUser?.username || "";
+        
+//         if (!name || /^(doctor|dr\.?)$/i.test(name.trim())) {
+//           name = linkedUser?.username || `Dr. ${doc._id}`;
+//         }
+        
+//         doc.name = name;
+//         delete doc.userId;
+//         return doc;
+//       });
+
+//     return res.status(200).json(enriched);
+//   } catch (error) {
+//     console.log(error);
+//     return res.status(500).json({ msg: "Internal server error", error: error.message });
+//   }
+// };
+
+// Get all doctors (with backward-compatible opt-in pagination)
 const getAllDoctors = async (req, res) => {
   try {
-    const onlyActive =
-      req.query.active === "true" || req.query.subscribed === "true";
+    const onlyActive = req.query.active === "true" || req.query.subscribed === "true";
+    
+    // Check if the frontend explicitly requested pagination
+    const isPaginated = req.query.page !== undefined;
 
     const filter = onlyActive
       ? {
@@ -57,37 +103,72 @@ const getAllDoctors = async (req, res) => {
         }
       : {};
 
-    const doctors = await Doctor.find(filter).populate(
-      "userId",
-      "username name email role isAdmin"
-    );
+    // 1. Build the base query
+    let query = Doctor.find(filter).populate({
+      path: "userId",
+      select: "username name email role isAdmin",
+      match: { 
+        isAdmin: { $ne: true }, 
+        role: { $nin: ["admin", "Admin"] } 
+      }
+    });
 
-    // Ensure every doctor has a proper full name (fallback to linked user)
+    let total = 0;
+    let page = 1;
+    let limit = 10;
+
+    // 2. Apply pagination limits ONLY if requested
+    if (isPaginated) {
+      page = parseInt(req.query.page, 10) || 1;
+      limit = parseInt(req.query.limit, 10) || 10;
+      const skip = (page - 1) * limit;
+      
+      query = query.skip(skip).limit(limit);
+      
+      // We only count total documents if we are paginating, saving DB resources
+      total = await Doctor.countDocuments(filter);
+    }
+
+    // 3. Execute the query
+    const doctors = await query.lean();
+
+    // 4. Format the output
     const enriched = doctors
-      // Exclude doctors whose linked user is an admin (so patients never see admins)
-      .filter((doc) => {
-        const linkedUser = doc.userId;
-        if (!linkedUser) return true;
-        const role = (linkedUser.role || "").toLowerCase();
-        return !(linkedUser.isAdmin || role === "admin");
-      })
+      .filter((doc) => doc.userId !== null) 
       .map((doc) => {
-        const obj = doc.toObject();
-        const linkedUser = obj.userId;
-        let name = obj.name || linkedUser?.name || linkedUser?.username || "";
-        // Strip generic "doctor" placeholder if present
+        const linkedUser = doc.userId;
+        let name = doc.name || linkedUser?.name || linkedUser?.username || "";
+        
         if (!name || /^(doctor|dr\.?)$/i.test(name.trim())) {
-          name = linkedUser?.username || `Dr. ${obj._id}`;
+          name = linkedUser?.username || `Dr. ${doc._id}`;
         }
-        obj.name = name;
-        delete obj.userId;
-        return obj;
+        
+        doc.name = name;
+        delete doc.userId;
+        return doc;
       });
 
-    return res.status(200).json(enriched);
+    // 5. Backward compatibility return
+    if (!isPaginated) {
+      // Returns a flat array (Doesn't break your current frontend)
+      return res.status(200).json(enriched);
+    }
+
+    // 6. Paginated return
+    // Returns an object when you call `/api/doctors?page=1&limit=10`
+    return res.status(200).json({
+      doctors: enriched,
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(total / limit),
+        totalDoctors: total,
+        limit: limit
+      }
+    });
+
   } catch (error) {
     console.log(error);
-    return res.status(500).json({ msg: "Internal server error", error });
+    return res.status(500).json({ msg: "Internal server error", error: error.message });
   }
 };
 
@@ -95,14 +176,14 @@ const getAllDoctors = async (req, res) => {
 const getDoctorById = async (req, res) => {
   try {
     const { id } = req.params;
-    const doctor = await Doctor.findById(id, { userId: 0 });
+    const doctor = await Doctor.findById(id, { userId: 0 }).lean();
     if (!doctor) {
       return res.status(404).json({ msg: "Doctor not found" });
     }
     return res.status(200).json(doctor);
   } catch (error) {
     console.log(error);
-    return res.status(500).json({ msg: "Internal server error", error });
+    return res.status(500).json({ msg: "Internal server error", error: error.message });
   }
 };
 
@@ -117,11 +198,10 @@ const updateDoctorProfile = async (req, res) => {
     return res.status(200).json(doctor);
   } catch (error) {
     console.log(error);
-    return res.status(500).json({ msg: "Internal server error", error });
+    return res.status(500).json({ msg: "Internal server error", error: error.message });
   }
 };
 
-// --- THIS WAS MISSING! ---
 // Get doctor profile for the logged-in user
 const getDoctorProfile = async (req, res) => {
   try {
@@ -131,7 +211,7 @@ const getDoctorProfile = async (req, res) => {
       return res.status(401).json({ msg: "Not authenticated" });
     }
 
-    const doctor = await Doctor.findOne({ userId });
+    const doctor = await Doctor.findOne({ userId }).lean();
     
     if (!doctor) {
       return res.status(404).json({ msg: "Doctor profile not found" });
@@ -140,10 +220,9 @@ const getDoctorProfile = async (req, res) => {
     return res.status(200).json(doctor);
   } catch (error) {
     console.log("Error getting doctor profile:", error);
-    return res.status(500).json({ msg: "Internal server error", error });
+    return res.status(500).json({ msg: "Internal server error", error: error.message });
   }
 };
-// --------------------------
 
 // Get available subscription plans
 const getPlans = async (req, res) => {
@@ -151,7 +230,6 @@ const getPlans = async (req, res) => {
     let plans = await SubscriptionPlan.find({ active: true }).lean();
 
     if (!plans || plans.length === 0) {
-      // Seed default plans if none exist
       const defaults = [
         {
           name: "Monthly",
@@ -187,7 +265,7 @@ const getPlans = async (req, res) => {
     return res.status(200).json(plans);
   } catch (error) {
     console.log(error);
-    return res.status(500).json({ msg: "Internal server error", error });
+    return res.status(500).json({ msg: "Internal server error", error: error.message });
   }
 };
 
@@ -198,9 +276,7 @@ const enrollSubscription = async (req, res) => {
     const userId = req.userID || req.body.userId;
 
     if (!userId) {
-      return res
-        .status(400)
-        .json({ msg: "User not authenticated. Please login." });
+      return res.status(400).json({ msg: "User not authenticated. Please login." });
     }
 
     const doctor = await Doctor.findOne({ userId });
@@ -210,21 +286,21 @@ const enrollSubscription = async (req, res) => {
       });
     }
 
-    const planData = await SubscriptionPlan.findOne({ name: plan });
+    // Safeguard: Prevent double billing for the same active plan
+    if (doctor.subscriptionStatus === "Active" && doctor.subscriptionPlan === plan) {
+      return res.status(400).json({ msg: "You are already actively subscribed to this plan." });
+    }
+
+    const planData = await SubscriptionPlan.findOne({ name: plan }).lean();
     if (!planData) {
       return res.status(400).json({ msg: "Invalid subscription plan" });
     }
 
-    // Simulated payment
-    const paymentReference = `PAY-${Date.now()}-${Math.floor(
-      Math.random() * 1000
-    )}`;
-
+    const paymentReference = `PAY-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     const startDate = new Date();
     const expiryDate = new Date(startDate);
     expiryDate.setDate(expiryDate.getDate() + planData.durationDays);
 
-    // Create or update subscription record
     let subscription = await DoctorSubscription.findOne({ userId });
     if (subscription) {
       subscription.plan = planData.name;
@@ -249,7 +325,6 @@ const enrollSubscription = async (req, res) => {
       });
     }
 
-    // Update doctor record
     doctor.subscriptionPlan = planData.name;
     doctor.subscriptionStatus = "Active";
     doctor.subscriptionExpiry = expiryDate;
@@ -262,7 +337,7 @@ const enrollSubscription = async (req, res) => {
     });
   } catch (error) {
     console.log(error);
-    return res.status(500).json({ msg: "Internal server error", error });
+    return res.status(500).json({ msg: "Internal server error", error: error.message });
   }
 };
 
@@ -273,13 +348,17 @@ const getMySubscription = async (req, res) => {
     if (!userId) {
       return res.status(401).json({ msg: "Not authenticated" });
     }
-    const doctor = await Doctor.findOne({ userId });
-    const subscription = await DoctorSubscription.findOne({ userId });
+    
+    // Concurrent execution for faster response
+    const [doctor, subscription] = await Promise.all([
+      Doctor.findOne({ userId }).lean(),
+      DoctorSubscription.findOne({ userId }).lean()
+    ]);
 
     return res.status(200).json({ doctor, subscription });
   } catch (error) {
     console.log(error);
-    return res.status(500).json({ msg: "Internal server error", error });
+    return res.status(500).json({ msg: "Internal server error", error: error.message });
   }
 };
 

@@ -42,19 +42,32 @@ export default function DoctorProfile() {
   const { user } = useAuth();
 
   useEffect(() => {
-    const storedDoctor = JSON.parse(localStorage.getItem("doctorProfile"));
-
-    if (storedDoctor) {
-      setDoctor(storedDoctor);
-      setImagePreview(storedDoctor.profileImage || "");
-    } else if (user) {
-      setDoctor((prev) => ({
-        ...prev,
-        name: user.name || user.username || "",
-        email: user.email || "",
-        phone: user.phone || "",
-      }));
-    }
+    const fetchProfile = async () => {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+      try {
+        const res = await fetch(`${API_URL}/api/doctorform/profile/mine`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setDoctor((prev) => ({ ...prev, ...data }));
+          setImagePreview(data.profileImage || "");
+          return;
+        }
+      } catch (err) {
+        console.error("Failed to load doctor profile:", err);
+      }
+      if (user) {
+        setDoctor((prev) => ({
+          ...prev,
+          name: user.name || user.username || "",
+          email: user.email || "",
+          phone: user.phone || "",
+        }));
+      }
+    };
+    fetchProfile();
   }, [user]);
 
   const handleChange = (e) => {
@@ -96,7 +109,7 @@ export default function DoctorProfile() {
       setOpenSnackbar(true);
 
       const response = await fetch(
-        "${API_URL}/api/doctorform/doctorprofile",
+        `${API_URL}/api/doctorform/doctorprofile`,
         {
           method: "POST",
           headers: {

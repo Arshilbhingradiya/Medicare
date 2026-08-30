@@ -19,25 +19,12 @@ import {
 import { format } from "date-fns";
 import { API_URL } from "../../config";
 
-const appointmentsData = [
-  {
-    id: 1,
-    doctor: "Dr. Emily Smith",
-    date: "2025-03-10",
-    time: "10:00 AM",
-    status: "Upcoming",
-  },
-  {
-    id: 2,
-    doctor: "Dr. John Doe",
-    date: "2025-02-25",
-    time: "2:30 PM",
-    status: "Past",
-  },
-];
-
 const parseAppointmentDateTime = (appointment) => {
-  const dateValue = appointment?.date || "";
+  const rawDate = appointment?.date || "";
+  const dateValue =
+    typeof rawDate === "string" && rawDate.includes("T")
+      ? rawDate.split("T")[0]
+      : rawDate;
   const [year, month, day] = dateValue.split("-").map(Number);
   const timeValue = appointment?.time || "00:00";
   const normalizedTime = timeValue.includes("-") ? timeValue.split("-")[0] : timeValue;
@@ -70,21 +57,6 @@ const sortAppointments = (items) => {
 const isAppointmentUpcoming = (appointment) => {
   const target = parseAppointmentDateTime(appointment);
   return target.getTime() >= Date.now();
-};
-
-const getStoredBookings = () => {
-  if (typeof window === "undefined") return [];
-  try {
-    return JSON.parse(localStorage.getItem("appointmentBookings") || "[]");
-  } catch {
-    return [];
-  }
-};
-
-const persistStoredBookings = (items) => {
-  if (typeof window === "undefined") return;
-  const bookings = items.filter((item) => item.source === "booking");
-  localStorage.setItem("appointmentBookings", JSON.stringify(bookings));
 };
 
 const PatientDashboard = () => {
@@ -155,12 +127,15 @@ const PatientDashboard = () => {
     }
 
     setSelectedAppointment(appointment);
-    setNewDate(appointment.date);
+    const dateOnly = appointment.date
+      ? new Date(appointment.date).toISOString().split("T")[0]
+      : "";
+    setNewDate(dateOnly);
     setNewTime(appointment.time);
     setOpenDialog(true);
   };
 
-  const handleSaveReschedule = () => {
+  const handleSaveReschedule = async () => {
     if (!selectedAppointment) return;
 
     if (!newDate || !newTime) {
@@ -174,26 +149,65 @@ const PatientDashboard = () => {
       return;
     }
 
-    const updated = appointments.map((app) =>
-      app.id === selectedAppointment.id
-        ? {
-            ...app,
-            date: newDate,
-            time: newTime,
-            status: "Upcoming",
-          }
-        : app
-    );
-    const sorted = sortAppointments(updated);
-    setAppointments(sorted);
-    persistStoredBookings(sorted);
-    setOpenDialog(false);
+    const appointmentId = selectedAppointment._id || selectedAppointment.id;
+
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(
+        `${API_URL}/api/patientform/appointments/${appointmentId}/reschedule`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ date: newDate, time: newTime }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        window.alert(data.msg || "Failed to reschedule appointment.");
+        return;
+      }
+
+      const updated = appointments.map((app) =>
+        (app._id || app.id) === appointmentId ? { ...app, ...data } : app
+      );
+      setAppointments(sortAppointments(updated));
+      setOpenDialog(false);
+    } catch (error) {
+      console.error("Error rescheduling appointment:", error);
+      window.alert("Unable to connect to the server.");
+    }
   };
 
-  const handleCancel = (id) => {
-    const updated = appointments.filter((app) => app.id !== id);
-    setAppointments(sortAppointments(updated));
-    persistStoredBookings(updated);
+  const handleCancel = async (id) => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(
+        `${API_URL}/api/patientform/appointments/${id}/status`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ status: "cancelled" }),
+        }
+      );
+
+      if (!response.ok) {
+        console.error("Failed to cancel appointment");
+        return;
+      }
+
+      const updated = appointments.filter((app) => (app._id || app.id) !== id);
+      setAppointments(sortAppointments(updated));
+    } catch (error) {
+      console.error("Error cancelling appointment:", error);
+    }
   };
 
   return (
@@ -217,7 +231,7 @@ const PatientDashboard = () => {
             const upcoming = isAppointmentUpcoming(app);
             return (
               <ListItem
-                key={app.id}
+                key={app._id || app.id}
                 divider
                 sx={{
                   mb: 0,
@@ -235,13 +249,14 @@ const PatientDashboard = () => {
                   primary={
                     <Box component="span" sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
                       <Typography variant="subtitle1" fontWeight={700}>
-                        {app.doctor}
+                        {app.doctorName || app.doctor}
                       </Typography>
                       <Chip
-                        label={upcoming ? "Upcoming" : "Completed"}
+                        label={app.status ? app.status : upcoming ? "Upcoming" : "Completed"}
                         size="small"
                         color={upcoming ? "primary" : "default"}
                         variant={upcoming ? "filled" : "outlined"}
+                        sx={{ textTransform: "capitalize" }}
                       />
                     </Box>
                   }
@@ -252,7 +267,7 @@ const PatientDashboard = () => {
                     <Button variant="outlined" onClick={() => handleReschedule(app)}>
                       Reschedule
                     </Button>
-                    <Button color="error" variant="outlined" onClick={() => handleCancel(app.id)}>
+                    <Button color="error" variant="outlined" onClick={() => handleCancel(app._id || app.id)}>
                       Cancel
                     </Button>
                   </Stack>

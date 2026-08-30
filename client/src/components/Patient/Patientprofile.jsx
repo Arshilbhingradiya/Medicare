@@ -15,17 +15,33 @@ import {
   Divider,
   Stack,
   Chip,
+  Fade,
+  Grow,
+  Skeleton,
+  InputAdornment,
 } from "@mui/material";
-import { Save, UploadFile } from "@mui/icons-material";
+import { 
+  Save, 
+  UploadFile, 
+  Person, 
+  Email, 
+  Phone, 
+  LocationOn, 
+  Cake, 
+  Wc, 
+  MedicalInformation,
+  CloudDone
+} from "@mui/icons-material";
 import MuiAlert from "@mui/material/Alert";
 import { useAuth } from "../../store/auth";
 import { styled } from "@mui/material/styles";
 import { API_URL } from "../../config";
 
+// --- Styled Components ---
 const ProfileContainer = styled(Paper)(({ theme }) => ({
   width: "100%",
   margin: "0 auto",
-  boxShadow: "0 22px 50px rgba(13, 71, 161, 0.16)",
+  boxShadow: "0 10px 40px rgba(13, 71, 161, 0.08)",
   borderRadius: "24px",
   overflow: "hidden",
   backgroundColor: theme.palette.mode === "dark" ? "#1e1e1e" : "#fff",
@@ -38,52 +54,80 @@ const AvatarInput = styled("input")({
 
 const PatientProfile = () => {
   const { user } = useAuth();
+  
+  // State for profile data
   const [profile, setProfile] = useState({
-    name: user?.name || user?.username || "",
+    name: "",
     age: "",
     gender: "",
-    email: user?.email || "",
-    phone: user?.phone || "",
+    email: "",
+    phone: "",
     address: "",
     medicalHistory: "",
     avatar: "",
   });
 
-  const [loading, setLoading] = useState(false);
+  // UI States
+  const [fetching, setFetching] = useState(true); // Initial load from DB
+  const [saving, setSaving] = useState(false);    // Saving to DB
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: "",
     severity: "success",
   });
 
+  // --- FETCH PROFILE FROM DATABASE ---
   useEffect(() => {
-    const savedProfile = localStorage.getItem(`patientProfile_${user?.id}`);
-    let parsedProfile = {};
-
-    if (savedProfile) {
+    const fetchProfile = async () => {
+      setFetching(true);
       try {
-        parsedProfile = JSON.parse(savedProfile);
+        const token = localStorage.getItem("token");
+        if (!token) {
+          setFetching(false);
+          return;
+        }
+
+        // Make sure this endpoint matches your backend route for GETting a profile
+        const response = await fetch(`${API_URL}/api/patientform/patientprofile`, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          // Merge database data, falling back to auth user data, then empty strings
+          setProfile({
+            name: data.name || user?.name || user?.username || "",
+            age: data.age || "",
+            gender: data.gender || "",
+            email: data.email || user?.email || "",
+            phone: data.phone || user?.phone || "",
+            address: data.address || "",
+            medicalHistory: data.medicalHistory || "",
+            avatar: data.avatar || "",
+          });
+        } else {
+          // If profile doesn't exist yet, populate with basic user details
+          setProfile((prev) => ({
+            ...prev,
+            name: user?.name || user?.username || "",
+            email: user?.email || "",
+            phone: user?.phone || "",
+          }));
+        }
       } catch (error) {
-        console.warn("Failed to parse saved patient profile", error);
+        console.error("Failed to fetch profile from database", error);
+      } finally {
+        setFetching(false);
       }
-    }
+    };
 
-    setProfile({
-      name: parsedProfile.name || user?.name || user?.username || "",
-      age: parsedProfile.age || "",
-      gender: parsedProfile.gender || "",
-      email: parsedProfile.email || user?.email || "",
-      phone: parsedProfile.phone || user?.phone || "",
-      address: parsedProfile.address || "",
-      medicalHistory: parsedProfile.medicalHistory || "",
-      avatar: parsedProfile.avatar || "",
-    });
-  }, [user?.id, user?.name, user?.username, user?.email, user?.phone]);
+    fetchProfile();
+  }, [user]);
 
-  const handleChange = (e) => {
-    setProfile({ ...profile, [e.target.name]: e.target.value });
-  };
-
+  // --- SAVE PROFILE TO DATABASE ---
   const handleSave = async () => {
     if (!profile.name || !profile.email || !profile.phone) {
       setSnackbar({
@@ -94,35 +138,44 @@ const PatientProfile = () => {
       return;
     }
 
-    setLoading(true);
-    localStorage.setItem(`patientProfile_${user?.id}`, JSON.stringify(profile));
+    setSaving(true);
+    const token = localStorage.getItem("token");
 
     try {
-      const response = await fetch(
-        `${API_URL}/patientform/patientprofile`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(profile),
-        }
-      );
-
-      await response.json();
-      window.dispatchEvent(new Event("profile-updated"));
-      setSnackbar({
-        open: true,
-        message: "Profile Saved Successfully!",
-        severity: "success",
+      const response = await fetch(`${API_URL}/api/patientform/patientprofile`, {
+        method: "POST", // Change to PUT if your backend uses PUT for updates
+        headers: { 
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}` // Secure API call
+        },
+        body: JSON.stringify(profile),
       });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        window.dispatchEvent(new Event("profile-updated"));
+        setSnackbar({
+          open: true,
+          message: "Profile Saved Successfully!",
+          severity: "success",
+        });
+      } else {
+        throw new Error(data.message || "Failed to save profile");
+      }
     } catch (error) {
       setSnackbar({
         open: true,
-        message: "Failed to save profile!",
+        message: error.message || "Failed to connect to the server!",
         severity: "error",
       });
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
+  };
+
+  const handleChange = (e) => {
+    setProfile({ ...profile, [e.target.name]: e.target.value });
   };
 
   const handleAvatarChange = (event) => {
@@ -132,192 +185,298 @@ const PatientProfile = () => {
       reader.onload = () => {
         const imageData = reader.result;
         setProfile((prev) => ({ ...prev, avatar: imageData }));
-        window.dispatchEvent(new Event("profile-updated"));
       };
       reader.readAsDataURL(file);
     }
   };
 
   return (
-    <Container maxWidth={false} sx={{ py: { xs: 2, md: 4 }, px: { xs: 1.5, md: 3 } }}>
-      <ProfileContainer>
-        <Box
-          sx={{
-            background: "linear-gradient(135deg, #0d47a1 0%, #1976d2 100%)",
-            color: "white",
-            p: { xs: 3, md: 4 },
-          }}
-        >
-          <Stack direction={{ xs: "column", md: "row" }} spacing={3} justifyContent="space-between" alignItems={{ xs: "center", md: "flex-start" }}>
-            <Box sx={{ position: "relative" }}>
-              <Avatar
-                src={profile.avatar || "/default-avatar.png"}
-                sx={{ width: 118, height: 118, border: "4px solid white", boxShadow: 3 }}
-              />
-              <label htmlFor="avatar-upload">
-                <AvatarInput accept="image/*" id="avatar-upload" type="file" onChange={handleAvatarChange} />
-                <IconButton
-                  component="span"
-                  sx={{
-                    position: "absolute",
-                    bottom: 0,
-                    right: -4,
-                    bgcolor: "white",
-                    boxShadow: 2,
-                    border: "1px solid #ddd",
-                    width: 42,
-                    height: 42,
-                  }}
-                >
-                  <UploadFile color="primary" />
-                </IconButton>
-              </label>
-            </Box>
-
-            <Box sx={{ flex: 1 }}>
-              <Typography variant="h4" sx={{ fontWeight: 700, mb: 1 }}>
-                Patient Profile
-              </Typography>
-              <Typography variant="body1" sx={{ opacity: 0.95, mb: 2 }}>
-                Keep your personal and medical details organized in a clear, polished layout.
-              </Typography>
-              <Stack direction={{ xs: "column", sm: "row" }} spacing={1.2} flexWrap="wrap">
-                <Chip label="Saved locally" color="secondary" sx={{ bgcolor: "rgba(255,255,255,0.18)", color: "white" }} />
-                <Chip label="Registration details synced" sx={{ bgcolor: "rgba(255,255,255,0.16)", color: "white" }} />
-              </Stack>
-            </Box>
-          </Stack>
-        </Box>
-
-        <Box sx={{ p: { xs: 3, md: 4 }, background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)" }}>
-          <Divider sx={{ mb: 3 }} />
-
-          <Box sx={{ mb: 3, p: { xs: 2, md: 2.5 }, borderRadius: 3, border: "1px solid #e3f2fd", bgcolor: "#f8fbff" }}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 700, color: "#0d47a1", mb: 2 }}>
-              Personal Information
-            </Typography>
-            <Grid container spacing={2.5}>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Full Name"
-                  name="name"
-                  value={profile.name}
-                  onChange={handleChange}
-                  required
-                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-                />
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Age"
-                  name="age"
-                  value={profile.age}
-                  onChange={handleChange}
-                  type="number"
-                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-                />
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  select
-                  label="Gender"
-                  name="gender"
-                  value={profile.gender}
-                  onChange={handleChange}
-                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-                >
-                  <MenuItem value="Male">Male</MenuItem>
-                  <MenuItem value="Female">Female</MenuItem>
-                  <MenuItem value="Other">Other</MenuItem>
-                </TextField>
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Email"
-                  name="email"
-                  value={profile.email}
-                  onChange={handleChange}
-                  type="email"
-                  required
-                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-                />
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Phone Number"
-                  name="phone"
-                  value={profile.phone}
-                  onChange={handleChange}
-                  type="tel"
-                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-                />
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Address"
-                  name="address"
-                  value={profile.address}
-                  onChange={handleChange}
-                  multiline
-                  rows={2}
-                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-                />
-              </Grid>
-            </Grid>
-          </Box>
-
-          <Box sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 3, border: "1px solid #e3f2fd", bgcolor: "#fcfdff" }}>
-            <Typography variant="subtitle1" sx={{ fontWeight: 700, color: "#0d47a1", mb: 2 }}>
-              Medical Details
-            </Typography>
-            <TextField
-              fullWidth
-              label="Medical History"
-              name="medicalHistory"
-              value={profile.medicalHistory}
-              onChange={handleChange}
-              multiline
-              rows={5}
-              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-            />
-          </Box>
-
-          <Button
-            variant="contained"
-            fullWidth
-            startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <Save />}
-            onClick={handleSave}
+    <Container maxWidth="lg" sx={{ py: { xs: 3, md: 5 }, px: { xs: 1.5, md: 3 } }}>
+      <Grow in={true} timeout={600}>
+        <ProfileContainer elevation={0}>
+          
+          {/* Animated Hero Header */}
+          <Box
             sx={{
-              mt: 3,
-              borderRadius: 2,
-              py: 1.3,
-              fontWeight: 700,
-              textTransform: "none",
-              background: "linear-gradient(135deg, #0d47a1 0%, #1976d2 100%)",
-              boxShadow: "0 8px 20px rgba(25, 118, 210, 0.25)",
-              '&:hover': {
-                background: "linear-gradient(135deg, #08306b 0%, #1565c0 100%)",
-              },
+              background: "linear-gradient(135deg, #0d47a1 0%, #1e88e5 100%)",
+              color: "white",
+              p: { xs: 3, md: 5 },
+              position: "relative",
             }}
-            disabled={loading}
           >
-            {loading ? "Saving..." : "Save Profile"}
-          </Button>
-        </Box>
-      </ProfileContainer>
+            <Box
+              sx={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: "radial-gradient(circle at 90% 10%, rgba(255,255,255,0.15) 0%, transparent 50%)",
+                pointerEvents: "none",
+              }}
+            />
+            
+            <Stack direction={{ xs: "column", md: "row" }} spacing={4} alignItems={{ xs: "center", md: "flex-start" }} position="relative">
+              {/* Avatar Upload */}
+              <Box sx={{ position: "relative" }}>
+                {fetching ? (
+                  <Skeleton variant="circular" width={130} height={130} sx={{ border: "4px solid rgba(255,255,255,0.3)" }} />
+                ) : (
+                  <Fade in>
+                    <Avatar
+                      src={profile.avatar || "/default-avatar.png"}
+                      sx={{ 
+                        width: 130, 
+                        height: 130, 
+                        border: "4px solid white", 
+                        boxShadow: "0 8px 24px rgba(0,0,0,0.2)",
+                        bgcolor: "grey.300" 
+                      }}
+                    />
+                  </Fade>
+                )}
+                <label htmlFor="avatar-upload">
+                  <AvatarInput accept="image/*" id="avatar-upload" type="file" onChange={handleAvatarChange} disabled={fetching} />
+                  <IconButton
+                    component="span"
+                    disabled={fetching}
+                    sx={{
+                      position: "absolute",
+                      bottom: 4,
+                      right: 0,
+                      bgcolor: "white",
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                      border: "1px solid #e0e0e0",
+                      width: 44,
+                      height: 44,
+                      '&:hover': { bgcolor: "#f5f5f5" },
+                      transition: "transform 0.2s",
+                      '&:active': { transform: "scale(0.95)" }
+                    }}
+                  >
+                    <UploadFile color="primary" />
+                  </IconButton>
+                </label>
+              </Box>
 
+              <Box sx={{ flex: 1, textAlign: { xs: "center", md: "left" } }}>
+                <Typography variant="overline" sx={{ color: "#FFeb3b", fontWeight: 800, letterSpacing: 1.5 }}>
+                  Account Settings
+                </Typography>
+                <Typography variant="h3" sx={{ fontWeight: 800, mb: 1, letterSpacing: "-0.5px" }}>
+                  Patient Profile
+                </Typography>
+                <Typography variant="body1" sx={{ opacity: 0.9, mb: 2.5, maxWidth: 600, fontSize: "1.05rem" }}>
+                  Keep your personal and medical details up to date to ensure seamless care.
+                </Typography>
+                <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} justifyContent={{ xs: "center", md: "flex-start" }}>
+                  <Chip 
+                    icon={<CloudDone sx={{ color: "#FFEB3B !important" }}/>} 
+                    label="Synced securely" 
+                    sx={{ bgcolor: "rgba(255,255,255,0.2)", color: "white", fontWeight: 600 }} 
+                  />
+                </Stack>
+              </Box>
+            </Stack>
+          </Box>
+
+          {/* Form Content */}
+          <Box sx={{ p: { xs: 2.5, md: 5 }, bgcolor: "#fafafa" }}>
+            
+            {/* Personal Information Section */}
+            <Fade in timeout={800}>
+              <Box sx={{ mb: 4, p: { xs: 3, md: 4 }, borderRadius: 4, border: "1px solid #e0e0e0", bgcolor: "#ffffff", boxShadow: "0 4px 20px rgba(0,0,0,0.02)" }}>
+                <Box display="flex" alignItems="center" gap={1.5} mb={3}>
+                  <Person color="primary" sx={{ fontSize: 28 }} />
+                  <Typography variant="h5" sx={{ fontWeight: 800, color: "primary.dark" }}>
+                    Personal Information
+                  </Typography>
+                </Box>
+                
+                <Grid container spacing={3}>
+                  <Grid item xs={12} md={6}>
+                    {fetching ? <Skeleton variant="rounded" height={56} /> : (
+                      <TextField
+                        fullWidth
+                        label="Full Name"
+                        name="name"
+                        value={profile.name}
+                        onChange={handleChange}
+                        required
+                        InputProps={{
+                          startAdornment: <InputAdornment position="start"><Person color="action" /></InputAdornment>,
+                        }}
+                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                      />
+                    )}
+                  </Grid>
+
+                  <Grid item xs={12} md={6}>
+                    {fetching ? <Skeleton variant="rounded" height={56} /> : (
+                      <TextField
+                        fullWidth
+                        label="Email Address"
+                        name="email"
+                        value={profile.email}
+                        onChange={handleChange}
+                        type="email"
+                        required
+                        InputProps={{
+                          startAdornment: <InputAdornment position="start"><Email color="action" /></InputAdornment>,
+                        }}
+                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                      />
+                    )}
+                  </Grid>
+
+                  <Grid item xs={12} md={6}>
+                    {fetching ? <Skeleton variant="rounded" height={56} /> : (
+                      <TextField
+                        fullWidth
+                        label="Phone Number"
+                        name="phone"
+                        value={profile.phone}
+                        onChange={handleChange}
+                        type="tel"
+                        required
+                        InputProps={{
+                          startAdornment: <InputAdornment position="start"><Phone color="action" /></InputAdornment>,
+                        }}
+                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                      />
+                    )}
+                  </Grid>
+
+                  <Grid item xs={12} md={3}>
+                    {fetching ? <Skeleton variant="rounded" height={56} /> : (
+                      <TextField
+                        fullWidth
+                        label="Age"
+                        name="age"
+                        value={profile.age}
+                        onChange={handleChange}
+                        type="number"
+                        InputProps={{
+                          startAdornment: <InputAdornment position="start"><Cake color="action" /></InputAdornment>,
+                        }}
+                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                      />
+                    )}
+                  </Grid>
+
+                  <Grid item xs={12} md={3}>
+                    {fetching ? <Skeleton variant="rounded" height={56} /> : (
+                      <TextField
+                        fullWidth
+                        select
+                        label="Gender"
+                        name="gender"
+                        value={profile.gender}
+                        onChange={handleChange}
+                        InputProps={{
+                          startAdornment: <InputAdornment position="start"><Wc color="action" /></InputAdornment>,
+                        }}
+                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                      >
+                        <MenuItem value="Male">Male</MenuItem>
+                        <MenuItem value="Female">Female</MenuItem>
+                        <MenuItem value="Other">Other</MenuItem>
+                      </TextField>
+                    )}
+                  </Grid>
+
+                  <Grid item xs={12}>
+                    {fetching ? <Skeleton variant="rounded" height={80} /> : (
+                      <TextField
+                        fullWidth
+                        label="Residential Address"
+                        name="address"
+                        value={profile.address}
+                        onChange={handleChange}
+                        multiline
+                        rows={2}
+                        InputProps={{
+                          startAdornment: <InputAdornment position="start" sx={{ alignSelf: 'flex-start', mt: 1.5 }}><LocationOn color="action" /></InputAdornment>,
+                        }}
+                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                      />
+                    )}
+                  </Grid>
+                </Grid>
+              </Box>
+            </Fade>
+
+            {/* Medical Details Section */}
+            <Fade in timeout={1200}>
+              <Box sx={{ mb: 4, p: { xs: 3, md: 4 }, borderRadius: 4, border: "1px solid #e0e0e0", bgcolor: "#ffffff", boxShadow: "0 4px 20px rgba(0,0,0,0.02)" }}>
+                <Box display="flex" alignItems="center" gap={1.5} mb={3}>
+                  <MedicalInformation color="primary" sx={{ fontSize: 28 }} />
+                  <Typography variant="h5" sx={{ fontWeight: 800, color: "primary.dark" }}>
+                    Medical Details
+                  </Typography>
+                </Box>
+                
+                {fetching ? <Skeleton variant="rounded" height={150} /> : (
+                  <TextField
+                    fullWidth
+                    label="Medical History & Allergies"
+                    name="medicalHistory"
+                    value={profile.medicalHistory}
+                    onChange={handleChange}
+                    multiline
+                    rows={5}
+                    placeholder="Please list any ongoing medical conditions, past surgeries, or allergies..."
+                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                  />
+                )}
+              </Box>
+            </Fade>
+
+            {/* Save Button */}
+            <Fade in timeout={1500}>
+              <Button
+                variant="contained"
+                size="large"
+                fullWidth
+                startIcon={saving ? <CircularProgress size={20} color="inherit" /> : <Save />}
+                onClick={handleSave}
+                disabled={saving || fetching}
+                sx={{
+                  py: 1.8,
+                  borderRadius: 3,
+                  fontWeight: 800,
+                  fontSize: "1.1rem",
+                  textTransform: "none",
+                  background: "linear-gradient(135deg, #1e88e5 0%, #0d47a1 100%)",
+                  boxShadow: "0 8px 24px rgba(25, 118, 210, 0.3)",
+                  '&:hover': {
+                    background: "linear-gradient(135deg, #1565c0 0%, #0a2756 100%)",
+                    transform: "translateY(-2px)",
+                    boxShadow: "0 12px 28px rgba(25, 118, 210, 0.4)",
+                  },
+                  transition: "all 0.2s"
+                }}
+              >
+                {saving ? "Saving securely to database..." : "Save Profile"}
+              </Button>
+            </Fade>
+          </Box>
+        </ProfileContainer>
+      </Grow>
+
+      {/* Snackbar for Notifications */}
       <Snackbar
         open={snackbar.open}
-        autoHideDuration={3000}
+        autoHideDuration={4000}
         onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
       >
-        <MuiAlert elevation={6} variant="filled" severity={snackbar.severity}>
+        <MuiAlert 
+          elevation={6} 
+          variant="filled" 
+          severity={snackbar.severity}
+          sx={{ borderRadius: 2, fontWeight: 600 }}
+        >
           {snackbar.message}
         </MuiAlert>
       </Snackbar>

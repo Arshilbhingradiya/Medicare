@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   Box,
@@ -13,35 +13,22 @@ import {
   Stack,
   TextField,
   Typography,
+  CircularProgress,
 } from "@mui/material";
 import MedicalServicesIcon from "@mui/icons-material/MedicalServices";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import LocalHospitalIcon from "@mui/icons-material/LocalHospital";
 import { useAuth } from "../../store/auth";
-
-const sanitizeKey = (value) =>
-  (value || "patient")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
-
-const getDoctorName = (user) => {
-  const stored = JSON.parse(localStorage.getItem("doctorProfile") || "{}");
-  return stored?.name || user?.username || user?.name || "Dr. Current User";
-};
+import { API_URL } from "../../config";
 
 const PatientFilePage = () => {
   const { appointmentId } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { authorizationtoken } = useAuth();
+
   const [appointment, setAppointment] = useState(null);
-  const [fileData, setFileData] = useState({
-    patientName: "",
-    phone: "",
-    weight: "",
-    height: "",
-    visits: [],
-  });
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState({
     weight: "",
     height: "",
@@ -51,112 +38,136 @@ const PatientFilePage = () => {
   });
   const [message, setMessage] = useState("");
 
+  // Load the appointment (case file) from the backend
   useEffect(() => {
-    const stored = JSON.parse(localStorage.getItem("appointmentBookings") || "[]");
-    const currentAppointment = (Array.isArray(stored) ? stored : []).find(
-      (item) => String(item.id) === String(appointmentId)
-    );
-    setAppointment(currentAppointment || null);
+    const fetchAppointment = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch(
+          `${API_URL}/api/patientform/appointments/${appointmentId}`,
+          {
+            method: "GET",
+            headers: { Authorization: authorizationtoken },
+          }
+        );
+        const data = await response.json();
 
-    const patientKey = currentAppointment?.patientId
-      ? `patientMedicalFile_${sanitizeKey(String(currentAppointment.patientId))}`
-      : `patientMedicalFile_${sanitizeKey(currentAppointment?.patientName || "patient")}`;
+        if (!response.ok) {
+          setMessage(data.msg || "Unable to load this appointment.");
+          setAppointment(null);
+          return;
+        }
 
-    const savedFile = JSON.parse(localStorage.getItem(patientKey) || "null");
-    if (savedFile) {
-      setFileData(savedFile);
-      setFormData((prev) => ({
-        ...prev,
-        weight: savedFile.weight || prev.weight,
-        height: savedFile.height || prev.height,
-        phone: savedFile.phone || prev.phone,
-      }));
-    } else if (currentAppointment) {
-      setFileData((prev) => ({ ...prev, patientName: currentAppointment.patientName || "Patient" }));
-      setFormData((prev) => ({ ...prev, phone: prev.phone || "" }));
+        setAppointment(data);
+        setFormData({
+          weight: data.weight || "",
+          height: data.height || "",
+          phone: data.phone || "",
+          prescription: data.prescription || "",
+          notes: data.notes || "",
+        });
+      } catch (error) {
+        console.error("Error loading appointment:", error);
+        setMessage("Unable to connect to the server.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (appointmentId && authorizationtoken) {
+      fetchAppointment();
     }
-  }, [appointmentId]);
+  }, [appointmentId, authorizationtoken]);
 
-  const latestVisit = useMemo(() => fileData.visits?.[0] || null, [fileData.visits]);
+  // Once we know which patient this is, load their full visit history with this doctor
+  useEffect(() => {
+    const fetchHistory = async () => {
+      const patientUserId = appointment?.patientUser;
+      if (!patientUserId) return;
+
+      try {
+        const response = await fetch(
+          `${API_URL}/api/patientform/appointments/patient/${patientUserId}`,
+          {
+            method: "GET",
+            headers: { Authorization: authorizationtoken },
+          }
+        );
+        const data = await response.json();
+        if (response.ok) {
+          setHistory(Array.isArray(data) ? data : []);
+        }
+      } catch (error) {
+        console.error("Error loading patient history:", error);
+      }
+    };
+
+    fetchHistory();
+  }, [appointment, authorizationtoken]);
 
   const handleFieldChange = (field) => (event) => {
     setFormData((prev) => ({ ...prev, [field]: event.target.value }));
   };
 
-  const handleSaveVisit = () => {
+  const handleSaveVisit = async () => {
     if (!appointment) return;
 
-    const doctorName = getDoctorName(user);
-    const patientKey = appointment.patientId
-      ? `patientMedicalFile_${sanitizeKey(String(appointment.patientId))}`
-      : `patientMedicalFile_${sanitizeKey(appointment.patientName || "patient")}`;
+    try {
+      const response = await fetch(
+        `${API_URL}/api/patientform/appointments/${appointmentId}/details`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: authorizationtoken,
+          },
+          body: JSON.stringify(formData),
+        }
+      );
 
-    const nextVisit = {
-      id: Date.now(),
-      date: appointment.date,
-      time: appointment.time,
-      doctorName,
-      weight: formData.weight || fileData.weight || "Not added",
-      height: formData.height || fileData.height || "Not added",
-      phone: formData.phone || fileData.phone || "Not added",
-      prescription: formData.prescription || "No prescription added yet.",
-      notes: formData.notes || "Routine follow-up",
-      createdAt: new Date().toISOString(),
-    };
+      const data = await response.json();
 
-    const updatedFile = {
-      patientName: appointment.patientName || fileData.patientName || "Patient",
-      phone: formData.phone || fileData.phone || "",
-      weight: formData.weight || fileData.weight || "",
-      height: formData.height || fileData.height || "",
-      visits: [nextVisit, ...(fileData.visits || [])],
-    };
+      if (!response.ok) {
+        setMessage(data.msg || "Failed to update patient file.");
+        return;
+      }
 
-    localStorage.setItem(patientKey, JSON.stringify(updatedFile));
-
-    const historyKey = `doctorPatientHistory_${sanitizeKey(doctorName)}`;
-    const existingHistory = JSON.parse(localStorage.getItem(historyKey) || "[]");
-    const historyEntry = {
-      id: Date.now(),
-      patientName: appointment.patientName || "Patient",
-      doctorName,
-      date: appointment.date,
-      time: appointment.time,
-      notes: `${formData.prescription || "Prescription added"}\n${formData.notes || ""}`,
-      createdAt: new Date().toISOString(),
-    };
-    localStorage.setItem(historyKey, JSON.stringify([historyEntry, ...existingHistory]));
-
-    const storedBookings = JSON.parse(localStorage.getItem("appointmentBookings") || "[]");
-    const updatedBookings = storedBookings.map((booking) =>
-      booking.id === appointment.id
-        ? {
-            ...booking,
-            notes: formData.notes || booking.notes,
-            prescription: formData.prescription || booking.prescription,
-            medicalFileUpdatedAt: new Date().toISOString(),
-          }
-        : booking
-    );
-    localStorage.setItem("appointmentBookings", JSON.stringify(updatedBookings));
-
-    setFileData(updatedFile);
-    setMessage("Patient file updated successfully.");
-    window.dispatchEvent(new Event("history-updated"));
-    window.dispatchEvent(new Event("appointments-updated"));
+      setAppointment(data);
+      setHistory((prev) =>
+        prev.map((item) => (item._id === data._id ? data : item))
+      );
+      setMessage("Patient file updated successfully.");
+    } catch (error) {
+      console.error("Error saving patient file:", error);
+      setMessage("Unable to connect to the server.");
+    }
   };
+
+  if (loading) {
+    return (
+      <Container maxWidth="md" sx={{ py: 6, textAlign: "center" }}>
+        <CircularProgress />
+      </Container>
+    );
+  }
 
   if (!appointment) {
     return (
       <Container maxWidth="md" sx={{ py: 6 }}>
         <Paper sx={{ p: 4, textAlign: "center", borderRadius: 4 }}>
           <Typography variant="h5" color="text.secondary">
-            Appointment file not found.
+            {message || "Appointment file not found."}
           </Typography>
+          <Button sx={{ mt: 2 }} onClick={() => navigate(-1)}>
+            Go back
+          </Button>
         </Paper>
       </Container>
     );
   }
+
+  // Previous visits excludes the visit currently open
+  const previousVisits = history.filter((item) => item._id !== appointment._id);
 
   return (
     <Container maxWidth="xl" sx={{ py: 4, px: { xs: 2, md: 4, lg: 6 } }}>
@@ -175,10 +186,10 @@ const PatientFilePage = () => {
                 </Typography>
               </Stack>
               <Typography variant="body1" color="text.secondary">
-                A professional case-sheet experience with patient details, measurements, prescriptions, and visit history in one place.
+                Patient details, measurements, prescriptions, and visit history — synced live from the database.
               </Typography>
             </Box>
-            <Chip label="Confidential record" color="primary" variant="outlined" />
+            <Chip label={`Status: ${appointment.status}`} color="primary" variant="outlined" sx={{ textTransform: "capitalize" }} />
           </Stack>
 
           <Grid container spacing={3}>
@@ -192,12 +203,12 @@ const PatientFilePage = () => {
                     </Typography>
                   </Stack>
                   <Divider sx={{ mb: 2 }} />
-                  <Typography variant="body1" sx={{ mb: 1.2 }}><strong>Name:</strong> {fileData.patientName || appointment.patientName || "Patient"}</Typography>
-                  <Typography variant="body1" sx={{ mb: 1.2 }}><strong>Mobile:</strong> {fileData.phone || "Not added yet"}</Typography>
-                  <Typography variant="body1" sx={{ mb: 1.2 }}><strong>Weight:</strong> {fileData.weight || "Not added yet"}</Typography>
-                  <Typography variant="body1" sx={{ mb: 1.2 }}><strong>Height:</strong> {fileData.height || "Not added yet"}</Typography>
-                  <Typography variant="body1" sx={{ mb: 1.2 }}><strong>Visit:</strong> {appointment.date} • {appointment.time}</Typography>
-                  <Typography variant="body1"><strong>Doctor:</strong> {getDoctorName(user)}</Typography>
+                  <Typography variant="body1" sx={{ mb: 1.2 }}><strong>Name:</strong> {appointment.patientName || "Patient"}</Typography>
+                  <Typography variant="body1" sx={{ mb: 1.2 }}><strong>Mobile:</strong> {appointment.phone || "Not added yet"}</Typography>
+                  <Typography variant="body1" sx={{ mb: 1.2 }}><strong>Weight:</strong> {appointment.weight || "Not added yet"}</Typography>
+                  <Typography variant="body1" sx={{ mb: 1.2 }}><strong>Height:</strong> {appointment.height || "Not added yet"}</Typography>
+                  <Typography variant="body1" sx={{ mb: 1.2 }}><strong>Visit:</strong> {new Date(appointment.date).toLocaleDateString()} • {appointment.time}</Typography>
+                  <Typography variant="body1"><strong>Doctor:</strong> {appointment.doctorName || "Doctor"}</Typography>
                 </CardContent>
               </Card>
             </Grid>
@@ -209,7 +220,7 @@ const PatientFilePage = () => {
                     Daily treatment entry
                   </Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                    Record the patient’s measurements and treatment plan for this visit.
+                    Record the patient&apos;s measurements and treatment plan for this visit.
                   </Typography>
 
                   <Grid container spacing={2}>
@@ -285,16 +296,18 @@ const PatientFilePage = () => {
 
           <Box sx={{ mt: 4 }}>
             <Typography variant="h6" fontWeight={700} color="primary.main" gutterBottom>
-              Previous visit history
+              Previous visit history with this doctor
             </Typography>
-            {fileData.visits?.length > 0 ? (
+            {previousVisits.length > 0 ? (
               <Stack spacing={2}>
-                {fileData.visits.map((visit) => (
-                  <Card key={visit.id} sx={{ borderRadius: 3, border: "1px solid #e7f0ff" }}>
+                {previousVisits.map((visit) => (
+                  <Card key={visit._id} sx={{ borderRadius: 3, border: "1px solid #e7f0ff" }}>
                     <CardContent>
                       <Stack direction={{ xs: "column", md: "row" }} spacing={1} justifyContent="space-between">
-                        <Typography fontWeight={700}>{visit.date} • {visit.time}</Typography>
-                        <Chip label={visit.doctorName || "Doctor"} color="secondary" variant="outlined" />
+                        <Typography fontWeight={700}>
+                          {new Date(visit.date).toLocaleDateString()} • {visit.time}
+                        </Typography>
+                        <Chip label={visit.status} color="secondary" variant="outlined" sx={{ textTransform: "capitalize" }} />
                       </Stack>
                       <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
                         {visit.notes || "No notes recorded"}

@@ -36,6 +36,18 @@ const appointmentSchema = new mongoose.Schema({
   notes: {
     type: String
   },
+  prescription: {
+    type: String
+  },
+  weight: {
+    type: String
+  },
+  height: {
+    type: String
+  },
+  phone: {
+    type: String
+  },
   createdAt: {
     type: Date,
     default: Date.now

@@ -21,10 +21,30 @@ router.get(
   authMiddleware,
   patientController.getDoctorAppointments
 );
+router.get(
+  "/appointments/patient/:patientUserId",
+  authMiddleware,
+  patientController.getPatientHistory
+);
 router.patch(
   "/appointments/:id/status",
   authMiddleware,
   patientController.updateAppointmentStatus
+);
+router.patch(
+  "/appointments/:id/reschedule",
+  authMiddleware,
+  patientController.rescheduleAppointment
+);
+router.patch(
+  "/appointments/:id/details",
+  authMiddleware,
+  patientController.updateAppointmentDetails
+);
+router.get(
+  "/appointments/:id",
+  authMiddleware,
+  patientController.getAppointmentById
 );
 
 module.exports = router;
