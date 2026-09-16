@@ -423,7 +423,7 @@ const Home = () => {
                       <Box sx={{ position: "absolute", bottom: -30, left: -20, width: 150, height: 150, borderRadius: "50%", bgcolor: "rgba(255,255,255,0.05)" }} />
                       <Box sx={{ position: "relative", zIndex: 1 }}>
                         <Typography variant="h4" fontWeight={800} gutterBottom>
-                          About MediCare
+                          About Docify
                         </Typography>
                         <Typography variant="body1" sx={{ opacity: 0.9, mb: 3 }}>
                           We are committed to providing the best healthcare services to our patients. Our platform connects you with top-rated doctors and specialists.
@@ -600,7 +600,7 @@ const Home = () => {
                 Ready to Take Control of Your Health?
               </Typography>
               <Typography variant="h6" color="rgba(255,255,255,0.9)" sx={{ mb: 4, maxWidth: 600, mx: "auto" }}>
-                Join thousands of satisfied patients who trust MediCare for their healthcare needs.
+                Join thousands of satisfied patients who trust Docify for their healthcare needs.
               </Typography>
               <Stack direction={{ xs: "column", sm: "row" }} spacing={2} justifyContent="center">
                 <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
@@ -641,7 +641,7 @@ const Home = () => {
                     <MedicalServices sx={{ color: "#FFEB3B", fontSize: 32 }} />
                   </Box>
                   <Typography variant="h5" fontWeight={800}>
-                    MediCare
+                    Docify
                   </Typography>
                 </Stack>
                 <Typography variant="body2" sx={{ opacity: 0.9 }}>
@@ -683,7 +683,7 @@ const Home = () => {
                   </Stack>
                   <Stack direction="row" alignItems="center" spacing={1}>
                     <Email sx={{ fontSize: 20 }} />
-                    <Typography variant="body2">support@medicare.com</Typography>
+                    <Typography variant="body2">support@Docify.com</Typography>
                   </Stack>
                   <Stack direction="row" alignItems="center" spacing={1}>
                     <AccessTime sx={{ fontSize: 20 }} />
@@ -695,7 +695,7 @@ const Home = () => {
             <Divider sx={{ my: 4, bgcolor: "rgba(255,255,255,0.2)" }} />
             <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" alignItems="center">
               <Typography variant="body2" sx={{ opacity: 0.8 }}>
-                © 2024 MediCare. All rights reserved.
+                © 2024 Docify. All rights reserved.
               </Typography>
               <Stack direction="row" spacing={2}>
                 <Typography variant="body2" sx={{ opacity: 0.8 }}>Privacy Policy</Typography>

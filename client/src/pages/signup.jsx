@@ -72,7 +72,7 @@ export default function Signup() {
 
       if (response.ok) {
         storeTokenInLS(res_data.token);
-        navigate(user.role === "Doctor" ? "/doctordashboard" : "/patientdashboard");
+        navigate(user.role === "Doctor" ? "/verifydoctor" : "/patientdashboard");
         setuser({
           username: "",
           email: "",
@@ -167,7 +167,7 @@ export default function Signup() {
                   Create Account
                 </Typography>
                 <Typography variant="body1" color="text.secondary">
-                  Join MediCare today
+                  Join Docify today
                 </Typography>
               </Box>
             </Stack>

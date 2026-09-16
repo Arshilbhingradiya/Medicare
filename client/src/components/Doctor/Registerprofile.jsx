@@ -1,162 +1,151 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
+  Alert,
+  Box,
+  Button,
   Card,
   CardContent,
-  TextField,
-  Button,
-  Typography,
   Container,
-  Box,
-  Snackbar,
-  Alert,
+  Grid,
+  MenuItem,
+  Stack,
+  TextField,
+  Typography,
 } from "@mui/material";
-import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
-import HourglassEmptyIcon from "@mui/icons-material/HourglassEmpty";
-import CancelIcon from "@mui/icons-material/Cancel";
+import { API_URL } from "../../config";
+import { useAuth } from "../../store/auth";
+
+const emptyApplication = {
+  name: "",
+  email: "",
+  phone: "",
+  degree: "",
+  medicalLicense: "",
+  specialization: "",
+  qualifications: "",
+  yearsOfExperience: "",
+  city: "",
+  clinicAddress: "",
+  degreeDocument: "",
+  licenseDocument: "",
+};
+
+const readFile = (file, setValue) => {
+  if (!file) return;
+  if (file.size > 2 * 1024 * 1024) {
+    setValue(null, "Each document must be smaller than 2 MB.");
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => setValue(reader.result, "");
+  reader.readAsDataURL(file);
+};
 
 export default function DoctorVerification() {
-  const [doctor, setDoctor] = useState({
-    name: "",
-    email: "",
-    license: "",
-    specialization: "",
-    medicalCertificate: "",
-  });
+  const { authorizationtoken, IsLoading, isLoggedIn } = useAuth();
+  const [application, setApplication] = useState(emptyApplication);
   const [status, setStatus] = useState("pending");
-  const [openSnackbar, setOpenSnackbar] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState("info");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    // Fetch stored doctor verification status
-    const storedDoctor = JSON.parse(localStorage.getItem("doctorVerification"));
-    const storedStatus = localStorage.getItem("doctorStatus") || "pending";
-    if (storedDoctor) {
-      setDoctor(storedDoctor);
+    if (IsLoading || !isLoggedIn || !authorizationtoken) return;
+    fetch(`${API_URL}/api/doctorform/verification`, { headers: { Authorization: authorizationtoken } })
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.msg || "Unable to load application");
+        setApplication((current) => ({ ...current, ...data }));
+        setStatus(data.status || "pending");
+        setRejectionReason(data.rejectionReason || "");
+      })
+      .catch((error) => {
+        setMessage(error.message);
+        setMessageType("error");
+      });
+  }, [IsLoading, isLoggedIn, authorizationtoken]);
+
+  const updateField = (event) => setApplication((current) => ({ ...current, [event.target.name]: event.target.value }));
+  const handleFile = (field) => (event) => readFile(event.target.files?.[0], (value, error) => {
+    if (error) {
+      setMessage(error);
+      setMessageType("error");
+      return;
     }
-    setStatus(storedStatus);
-  }, []);
+    setApplication((current) => ({ ...current, [field]: value }));
+  });
 
-  const handleChange = (e) => {
-    setDoctor({ ...doctor, [e.target.name]: e.target.value });
+  const submit = async (event) => {
+    event.preventDefault();
+    setMessage("");
+    if (!application.degreeDocument || !application.licenseDocument) {
+      setMessage("Degree and medical license documents are required.");
+      setMessageType("error");
+      return;
+    }
+    setSaving(true);
+    try {
+      const response = await fetch(`${API_URL}/api/doctorform/verification`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: authorizationtoken },
+        body: JSON.stringify(application),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.msg || "Unable to submit application");
+      setApplication((current) => ({ ...current, ...data.doctor }));
+      setStatus("pending");
+      setRejectionReason("");
+      setMessage("Application submitted. Admin review is pending.");
+      setMessageType("success");
+    } catch (error) {
+      setMessage(error.message);
+      setMessageType("error");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleSubmit = () => {
-    // Simulate sending verification request to admin
-    console.log("Doctor Verification Submitted", doctor);
-    localStorage.setItem("doctorVerification", JSON.stringify(doctor));
-    localStorage.setItem("doctorStatus", "pending");
-    setStatus("pending");
-    setOpenSnackbar(true);
-  };
-
-  const handleCloseSnackbar = () => {
-    setOpenSnackbar(false);
-  };
-
-  const statusColor = {
-    pending: "text-yellow-600",
-    verified: "text-green-600",
-    rejected: "text-red-600",
-  };
-
-  const statusIcon = {
-    pending: (
-      <HourglassEmptyIcon className="text-yellow-600" fontSize="large" />
-    ),
-    verified: (
-      <CheckCircleOutlineIcon className="text-green-600" fontSize="large" />
-    ),
-    rejected: <CancelIcon className="text-red-600" fontSize="large" />,
-  };
+  const statusColor = status === "approved" ? "success" : status === "rejected" ? "error" : "warning";
 
   return (
-    <Container
-      maxWidth="sm"
-      className="flex justify-center items-center min-h-screen"
-    >
-      <Card className="shadow-xl p-6 rounded-xl w-full">
-        <CardContent>
-          <Typography
-            variant="h4"
-            className="mb-6 text-center font-bold text-gray-700"
-          >
-            Doctor Identity Verification
-          </Typography>
-          <Box className="flex justify-center mb-4">{statusIcon[status]}</Box>
-          <Typography
-            variant="h6"
-            className={`text-center ${statusColor[status]} font-semibold mb-4`}
-          >
-            Status: {status.charAt(0).toUpperCase() + status.slice(1)}
-          </Typography>
-          <TextField
-            fullWidth
-            label="Name"
-            name="name"
-            variant="outlined"
-            className="mb-4"
-            value={doctor.name}
-            onChange={handleChange}
-          />
-          <TextField
-            fullWidth
-            label="Email"
-            name="email"
-            variant="outlined"
-            className="mb-4"
-            value={doctor.email}
-            onChange={handleChange}
-          />
-          <TextField
-            fullWidth
-            label="License Number"
-            name="license"
-            variant="outlined"
-            className="mb-4"
-            value={doctor.license}
-            onChange={handleChange}
-          />
-          <TextField
-            fullWidth
-            label="Specialization"
-            name="specialization"
-            variant="outlined"
-            className="mb-4"
-            value={doctor.specialization}
-            onChange={handleChange}
-          />
-          <TextField
-            fullWidth
-            label="Medical Certificate ID"
-            name="medicalCertificate"
-            variant="outlined"
-            className="mb-4"
-            value={doctor.medicalCertificate}
-            onChange={handleChange}
-          />
-          <Button
-            fullWidth
-            variant="contained"
-            color="primary"
-            onClick={handleSubmit}
-            className="py-3 text-lg"
-          >
-            Submit for Verification
-          </Button>
+    <Container maxWidth="md" sx={{ py: 5 }}>
+      <Card elevation={5}>
+        <CardContent sx={{ p: { xs: 2, md: 4 } }}>
+          <Typography variant="h4" fontWeight={800} color="primary.main">Doctor Verification</Typography>
+          <Typography color="text.secondary" sx={{ mt: 1 }}>Submit your identity and professional documents. Patient visibility starts only after admin approval and an active subscription or trial.</Typography>
+          <Alert severity={statusColor} sx={{ mt: 3 }}>Application status: <strong>{status}</strong>{rejectionReason ? ` - ${rejectionReason}` : ""}</Alert>
+          {message && <Alert severity={messageType} sx={{ mt: 2 }}>{message}</Alert>}
+
+          <Box component="form" onSubmit={submit} sx={{ mt: 3 }}>
+            <Grid container spacing={2}>
+              {[["name", "Full name"], ["email", "Email"], ["phone", "Phone"], ["degree", "Degree"], ["medicalLicense", "Medical license number"], ["qualifications", "Qualifications"], ["yearsOfExperience", "Years of experience"], ["city", "City"], ["clinicAddress", "Clinic address"]].map(([name, label]) => (
+                <Grid item xs={12} sm={name === "clinicAddress" ? 12 : 6} key={name}>
+                  <TextField fullWidth required={["name", "email", "degree", "medicalLicense"].includes(name)} name={name} label={label} value={application[name] || ""} onChange={updateField} />
+                </Grid>
+              ))}
+              <Grid item xs={12} sm={6}>
+                <TextField fullWidth required select name="specialization" label="Specialization" value={application.specialization || ""} onChange={updateField}>
+                  {['General Physician', 'Cardiologist', 'Dermatologist', 'Neurologist', 'Orthopedic', 'Dentist'].map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}
+                </TextField>
+              </Grid>
+              <Grid item xs={12}>
+                <Stack spacing={1}>
+                  <Typography fontWeight={700}>Degree certificate *</Typography>
+                  <Button component="label" variant="outlined">{application.degreeDocument ? "Degree document selected" : "Upload degree certificate"}<input hidden type="file" accept="image/*,.pdf" onChange={handleFile("degreeDocument")} /></Button>
+                </Stack>
+              </Grid>
+              <Grid item xs={12}>
+                <Stack spacing={1}>
+                  <Typography fontWeight={700}>Medical license document *</Typography>
+                  <Button component="label" variant="outlined">{application.licenseDocument ? "License document selected" : "Upload medical license"}<input hidden type="file" accept="image/*,.pdf" onChange={handleFile("licenseDocument")} /></Button>
+                </Stack>
+              </Grid>
+            </Grid>
+            <Button type="submit" fullWidth variant="contained" size="large" disabled={saving || IsLoading || !isLoggedIn} sx={{ mt: 3 }}>{saving ? "Submitting..." : "Submit for admin verification"}</Button>
+          </Box>
         </CardContent>
       </Card>
-      <Snackbar
-        open={openSnackbar}
-        autoHideDuration={3000}
-        onClose={handleCloseSnackbar}
-      >
-        <Alert
-          onClose={handleCloseSnackbar}
-          severity="info"
-          sx={{ width: "100%" }}
-        >
-          Verification request submitted! Waiting for admin approval.
-        </Alert>
-      </Snackbar>
     </Container>
   );
 }

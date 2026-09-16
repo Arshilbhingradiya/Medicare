@@ -62,7 +62,8 @@ const register = async (req, res) => {
           city: "Not Provided",
           subscriptionPlan: "Free",
           subscriptionStatus: "Free",
-          isVerified: true
+          status: "pending",
+          adminApproved: false
         });
       } catch (docError) {
         console.error("Doctor profile auto-creation failed:", docError.message);

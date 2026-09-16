@@ -4,36 +4,196 @@ const {
   SubscriptionPlan,
   DoctorSubscription,
 } = require("../models/Subscription-model");
+const { bookableDoctorQuery } = require("../utils/doctor-eligibility");
+const Appointment = require("../models/appointment-model");
+
+const getSlotLabels = (schedule) => {
+  const slots = [];
+  String(schedule || "").split(",").forEach((range) => {
+    const [start, end] = range.trim().split("-");
+    if (!start || !end) return;
+    const [startHour, startMinute] = start.split(":").map(Number);
+    const [endHour, endMinute] = end.split(":").map(Number);
+    let current = startHour * 60 + startMinute;
+    const finish = endHour * 60 + endMinute;
+    while (current < finish) {
+      const hour = Math.floor(current / 60);
+      const minute = current % 60;
+      const next = current + 60;
+      const nextHour = Math.floor(next / 60);
+      const nextMinute = next % 60;
+      slots.push({
+        label: `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}-${String(nextHour).padStart(2, "0")}:${String(nextMinute).padStart(2, "0")}`,
+      });
+      current = next;
+    }
+  });
+  return slots;
+};
+
+const getDoctorAvailability = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { date } = req.query;
+    if (!date) return res.status(400).json({ msg: "Date is required" });
+    const dayStart = new Date(`${date}T00:00:00.000Z`);
+    const dayEnd = new Date(dayStart);
+    dayEnd.setUTCDate(dayEnd.getUTCDate() + 1);
+    if (Number.isNaN(dayStart.getTime())) return res.status(400).json({ msg: "Invalid date" });
+
+    const doctor = await Doctor.findById(id).lean();
+    if (!doctor || !require("../utils/doctor-eligibility").isDoctorBookable(doctor)) {
+      return res.status(404).json({ msg: "Doctor is not available" });
+    }
+    const weekday = new Date(`${date}T12:00:00.000Z`).getUTCDay();
+    const holiday = doctor.holidays?.find((item) => item.date === date && !item.branchId);
+    const weeklyOff = doctor.weeklyOffDays?.includes(weekday);
+    const closed = Boolean(holiday || weeklyOff);
+    const closedReason = holiday?.reason || (weeklyOff ? "Weekly off" : "");
+    const branches = Array.isArray(doctor.branches) && doctor.branches.length
+      ? doctor.branches.filter((branch) => branch.active !== false)
+      : [{ _id: null, name: "Main clinic", city: doctor.city, clinicAddress: doctor.clinicAddress, availabilitySchedule: doctor.availabilitySchedule, slotCapacity: doctor.slotCapacity }];
+    const availability = [];
+    for (const branch of branches) {
+      const branchHoliday = doctor.holidays?.find((item) => item.date === date && item.branchId && String(item.branchId) === String(branch._id));
+      const branchClosed = closed || Boolean(branchHoliday);
+      const filter = { doctor: doctor._id, date: { $gte: dayStart, $lt: dayEnd }, status: { $ne: "cancelled" } };
+      if (branch._id) filter.branchId = branch._id;
+      const appointments = await Appointment.find(filter).select("time").lean();
+      const counts = appointments.reduce((result, appointment) => {
+        result[appointment.time] = (result[appointment.time] || 0) + 1;
+        return result;
+      }, {});
+      availability.push({
+        branchId: branch._id,
+        name: branch.name,
+        city: branch.city,
+        clinicAddress: branch.clinicAddress,
+        slotCapacity: branch.slotCapacity,
+        closed: branchClosed,
+        closedReason: branchHoliday?.reason || closedReason,
+        slots: branchClosed ? [] : getSlotLabels(branch.availabilitySchedule).map((slot) => ({
+          ...slot,
+          remaining: Math.max(0, Number(branch.slotCapacity || 0) - (counts[slot.label] || 0)),
+        })),
+      });
+    }
+    return res.status(200).json({ doctorId: doctor._id, date, closed, closedReason, branches: availability });
+  } catch (error) {
+    console.error("Availability error:", error);
+    return res.status(500).json({ msg: "Unable to load doctor availability" });
+  }
+};
+
+const getVerificationApplication = async (req, res) => {
+  try {
+    const doctor = await Doctor.findOne({ userId: req.userID }).select("name email phone license medicalLicense degree qualifications specialization yearsOfExperience city clinicAddress degreeDocument licenseDocument status adminApproved verificationSubmittedAt rejectionReason").lean();
+    if (!doctor) return res.status(404).json({ msg: "Doctor profile not found" });
+    return res.status(200).json(doctor);
+  } catch (error) {
+    return res.status(500).json({ msg: "Unable to load verification application" });
+  }
+};
+
+const submitVerificationApplication = async (req, res) => {
+  try {
+    const requiredFields = ["name", "email", "degree", "medicalLicense", "degreeDocument", "licenseDocument", "specialization"];
+    const missing = requiredFields.filter((field) => !String(req.body?.[field] || "").trim());
+    if (missing.length) return res.status(400).json({ msg: `Please complete: ${missing.join(", ")}` });
+    const doctor = await Doctor.findOneAndUpdate(
+      { userId: req.userID },
+      { $set: { name: req.body.name.trim(), email: req.body.email.trim().toLowerCase(), phone: req.body.phone?.trim(), license: req.body.medicalLicense.trim(), medicalLicense: req.body.medicalLicense.trim(), degree: req.body.degree.trim(), qualifications: req.body.qualifications?.trim(), specialization: req.body.specialization.trim(), yearsOfExperience: req.body.yearsOfExperience?.trim(), city: req.body.city?.trim(), clinicAddress: req.body.clinicAddress?.trim(), degreeDocument: req.body.degreeDocument, licenseDocument: req.body.licenseDocument, status: "pending", adminApproved: false, rejectionReason: "", verificationSubmittedAt: new Date() } },
+      { new: true, runValidators: true }
+    );
+    if (!doctor) return res.status(404).json({ msg: "Doctor profile not found" });
+    return res.status(200).json({ msg: "Verification application submitted", doctor });
+  } catch (error) {
+    console.error("Verification submission error:", error);
+    return res.status(500).json({ msg: "Unable to submit verification application" });
+  }
+};
+
+const getDoctorRecommendations = async (req, res) => {
+  try {
+    const query = String(req.query.query || "").trim();
+    const filter = bookableDoctorQuery();
+    if (query) {
+      const expression = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+      filter.$or = [{ name: expression }, { city: expression }, { specialization: expression }, { qualifications: expression }];
+    }
+    const doctors = await Doctor.find(filter).sort({ yearsOfExperience: -1 }).limit(20).lean();
+    return res.status(200).json({ doctors, query, message: doctors.length ? "Recommended doctors found" : "No matching eligible doctors found" });
+  } catch (error) {
+    return res.status(500).json({ msg: "Unable to get doctor recommendations" });
+  }
+};
+
+const getDoctorSummary = async (req, res) => {
+  try {
+    const doctor = await Doctor.findOne({ userId: req.userID }).lean();
+    if (!doctor) return res.status(404).json({ msg: "Doctor profile not found" });
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    const Appointment = require("../models/appointment-model");
+    const appointments = await Appointment.find({ doctor: doctor._id, date: { $gte: start } }).lean();
+    return res.status(200).json({
+      today: appointments.filter((item) => new Date(item.date).toDateString() === new Date().toDateString()).length,
+      pending: appointments.filter((item) => item.status === "pending").length,
+      confirmed: appointments.filter((item) => item.status === "confirmed").length,
+      completed: appointments.filter((item) => item.status === "completed").length,
+      nextAppointment: appointments.filter((item) => item.status !== "cancelled").sort((a, b) => new Date(a.date) - new Date(b.date))[0] || null,
+    });
+  } catch (error) {
+    return res.status(500).json({ msg: "Unable to load doctor summary" });
+  }
+};
 
 // Create / update doctor profile (linked to logged-in user)
 const doctorprofile = async (req, res) => {
   try {
-    const responce = req.body;
+    const userId = req.userID;
 
-    // Prioritize the authenticated user token to prevent spoofing
-    const userId = req.userID || req.body.userId;
-    
     if (!userId) {
-      return res.status(401).json({ msg: "User ID is required" });
+      return res.status(401).json({
+        msg: "User not authenticated",
+      });
     }
 
-    const payload = { ...responce, userId };
+    const allowedFields = [
+      "name", "email", "license", "specialization", "phone", "clinicAddress",
+      "city", "yearsOfExperience", "qualifications", "availability", "bio",
+      "availabilitySchedule", "slotCapacity", "consultationFee", "profileImage", "branches", "weeklyOffDays", "holidays", "degree", "medicalLicense", "degreeDocument", "licenseDocument",
+    ];
+    const payload = allowedFields.reduce((result, field) => {
+      if (req.body[field] !== undefined) result[field] = req.body[field];
+      return result;
+    }, { userId });
 
     const existing = await Doctor.findOne({ userId });
 
     let doctor;
+
     if (existing) {
-      doctor = await Doctor.findByIdAndUpdate(existing._id, payload, {
-        new: true,
-      });
+      doctor = await Doctor.findByIdAndUpdate(
+        existing._id,
+        payload,
+        {
+          new: true,
+          runValidators: true,
+        }
+      );
     } else {
       doctor = await Doctor.create(payload);
     }
 
     return res.status(200).json(doctor);
   } catch (error) {
-    console.log(error);
-    return res.status(500).json({ msg: "Internal server error", error: error.message });
+    console.error("Error saving doctor profile:", error);
+
+    return res.status(500).json({
+      msg: "Internal server error",
+      error: error.message,
+    });
   }
 };
 
@@ -89,19 +249,14 @@ const doctorprofile = async (req, res) => {
 // Get all doctors (with backward-compatible opt-in pagination)
 const getAllDoctors = async (req, res) => {
   try {
-    const onlyActive = req.query.active === "true" || req.query.subscribed === "true";
-    
+    const filter = bookableDoctorQuery();
+    if (req.query.city) filter.city = new RegExp(`^${req.query.city.trim()}$`, "i");
+    if (req.query.specialization) {
+      filter.specialization = new RegExp(`^${req.query.specialization.trim()}$`, "i");
+    }
+
     // Check if the frontend explicitly requested pagination
     const isPaginated = req.query.page !== undefined;
-
-    const filter = onlyActive
-      ? {
-          $or: [
-            { subscriptionStatus: "Active" },
-            { subscriptionStatus: { $exists: false } },
-          ],
-        }
-      : {};
 
     // 1. Build the base query
     let query = Doctor.find(filter).populate({
@@ -177,7 +332,8 @@ const getDoctorById = async (req, res) => {
   try {
     const { id } = req.params;
     const doctor = await Doctor.findById(id, { userId: 0 }).lean();
-    if (!doctor) {
+    const { isDoctorBookable } = require("../utils/doctor-eligibility");
+    if (!doctor || !isDoctorBookable(doctor)) {
       return res.status(404).json({ msg: "Doctor not found" });
     }
     return res.status(200).json(doctor);
@@ -190,8 +346,21 @@ const getDoctorById = async (req, res) => {
 // Update doctor profile
 const updateDoctorProfile = async (req, res) => {
   try {
-    const { id } = req.params;
-    const doctor = await Doctor.findByIdAndUpdate(id, req.body, { new: true });
+    if (!req.userID) return res.status(401).json({ msg: "Not authenticated" });
+    const allowedFields = [
+      "name", "email", "license", "specialization", "phone", "clinicAddress",
+      "city", "yearsOfExperience", "qualifications", "availability", "bio",
+      "availabilitySchedule", "slotCapacity", "profileImage",
+    ];
+    const updates = allowedFields.reduce((result, field) => {
+      if (req.body[field] !== undefined) result[field] = req.body[field];
+      return result;
+    }, {});
+    const doctor = await Doctor.findOneAndUpdate(
+      { userId: req.userID },
+      { $set: updates },
+      { new: true, runValidators: true }
+    );
     if (!doctor) {
       return res.status(404).json({ msg: "Doctor not found" });
     }
@@ -363,6 +532,11 @@ const getMySubscription = async (req, res) => {
 };
 
 module.exports = {
+  getVerificationApplication,
+  submitVerificationApplication,
+  getDoctorRecommendations,
+  getDoctorSummary,
+  getDoctorAvailability,
   doctorprofile,
   getAllDoctors,
   getDoctorById,

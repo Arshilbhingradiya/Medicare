@@ -247,7 +247,7 @@ export default function Login() {
                   Welcome Back
                 </Typography>
                 <Typography variant="body1" color="text.secondary">
-                  Sign in to continue to MediCare
+                  Sign in to continue to Docify
                 </Typography>
               </Box>
             </Stack>

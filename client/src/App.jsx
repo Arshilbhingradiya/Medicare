@@ -23,13 +23,14 @@ import Registerprofile from "./components/Doctor/Registerprofile";
 import Doctordashboard from "./components/Doctor/Doctordashboard";
 import SubscriptionPlan from "./components/Doctor/SubscriptionPlan";
 import Adminsubscriptions from "./pages/Adminsubscriptions";
+import Adminverification from "./pages/Adminverfication";
 // import DoctorAppoinments from "./components/Doctor/DoctorAppoinment";
 import PatientRecords from "./components/Doctor/Patientrecords";
 import PatientFilePage from "./components/Doctor/PatientFilePage";
 import DoctorSearch from "./components/Patient/Doctorsearch";
 import PrivateRoute from "./components/PrivateRoute";
 import { useState } from "react";
-// import Adminverification from "./pages/Adminverfication";
+import AssistantChat from "./components/AssistantChat";
 
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -96,11 +97,11 @@ function App() {
               }
             ></Route>
 
-<Route path="/verifydoctor" element={<Registerprofile />}></Route>
+            <Route path="/verifydoctor" element={<PrivateRoute allowedRoles={["Doctor"]}><Registerprofile /></PrivateRoute>}></Route>
             <Route
               path="/doctorprofile"
               element={
-                <PrivateRoute>
+                <PrivateRoute allowedRoles={["Doctor"]}>
                   <DoctorProfile />
                 </PrivateRoute>
               }
@@ -108,7 +109,7 @@ function App() {
             <Route
               path="/doctordashboard"
               element={
-                <PrivateRoute>
+                <PrivateRoute allowedRoles={["Doctor"]}>
                   <Doctordashboard />
                 </PrivateRoute>
               }
@@ -116,7 +117,7 @@ function App() {
             <Route
               path="/subscription"
               element={
-                <PrivateRoute>
+                <PrivateRoute allowedRoles={["Doctor"]}>
                   <SubscriptionPlan />
                 </PrivateRoute>
               }
@@ -125,11 +126,11 @@ function App() {
               path="/doctorappoinment"
               element={<DoctorAppoinments />}
             ></Route> */}
-            <Route path="/patientrecords" element={<PatientRecords />}></Route>
+            <Route path="/patientrecords" element={<PrivateRoute allowedRoles={["Doctor"]}><PatientRecords /></PrivateRoute>}></Route>
             <Route
               path="/patientfile/:appointmentId"
               element={
-                <PrivateRoute>
+                <PrivateRoute allowedRoles={["Doctor"]}>
                   <PatientFilePage />
                 </PrivateRoute>
               }
@@ -141,10 +142,11 @@ function App() {
               <Route path="users" element={<Adminusers />} />
               <Route path="contacts" element={<Admincontacts />} />
               <Route path="subscriptions" element={<Adminsubscriptions />} />
-              {/* <Route path="status" element={<Adminverification />} /> */}
+              <Route path="status" element={<Adminverification />} />
             </Route>
           </Routes>
         </Box>
+        <AssistantChat />
       </BrowserRouter>
     </div>
   );

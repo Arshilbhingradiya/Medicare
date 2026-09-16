@@ -48,8 +48,8 @@ const checkSubscriptionStatus = async (req, res) => {
     // Your Doctor model currently uses subscriptionExpiry
     if (
       doctor.subscriptionStatus === "Active" &&
-      doctor.subscriptionExpiry &&
-      new Date(doctor.subscriptionExpiry) <= now
+      (doctor.expiryDate || doctor.subscriptionExpiry) &&
+      new Date(doctor.expiryDate || doctor.subscriptionExpiry) <= now
     ) {
       doctor.subscriptionStatus = "Expired";
       doctor.isSubscribed = false;
@@ -71,6 +71,7 @@ const checkSubscriptionStatus = async (req, res) => {
 
     return res.status(200).json({
       success: true,
+      status: doctor.subscriptionStatus || "Inactive",
       subscription: {
         isSubscribed: doctor.isSubscribed || false,
         planName: doctor.subscriptionPlan || null,
@@ -117,6 +118,9 @@ const activateTrial = async (req, res) => {
         msg: "Doctor profile not found",
       });
     }
+    if (doctor.status !== "approved" || doctor.adminApproved !== true) {
+      return res.status(403).json({ success: false, msg: "Admin approval is required before starting a free trial." });
+    }
 
     // Prevent using trial more than once
     if (
@@ -143,6 +147,7 @@ const activateTrial = async (req, res) => {
 
     // Update doctor
     doctor.isSubscribed = true;
+    doctor.planName = "Free Trial";
     doctor.subscriptionPlan = "Free Trial";
     doctor.subscriptionStatus = "Trial";
 
@@ -150,6 +155,7 @@ const activateTrial = async (req, res) => {
     doctor.trialEndsAt = trialEndsAt;
 
     // Use same expiry field as your existing doctor controller
+    doctor.expiryDate = trialEndsAt;
     doctor.subscriptionExpiry = trialEndsAt;
 
     await doctor.save();
@@ -259,6 +265,12 @@ const createOrder = async (req, res) => {
         success: false,
         msg: "Doctor profile not found",
       });
+    }
+      if (doctor.status !== "approved" || doctor.adminApproved !== true) {
+        return res.status(403).json({ success: false, msg: "Admin approval is required before creating a subscription order." });
+      }
+    if (doctor.status !== "approved" || doctor.adminApproved !== true) {
+      return res.status(403).json({ success: false, msg: "Admin approval is required before activating a subscription." });
     }
 
     // Razorpay amount is paise
@@ -452,8 +464,8 @@ const verifyPayment = async (req, res) => {
     // extend from current expiry instead of today.
     if (
       doctor.subscriptionStatus === "Active" &&
-      doctor.subscriptionExpiry &&
-      new Date(doctor.subscriptionExpiry) > now
+      (doctor.expiryDate || doctor.subscriptionExpiry) &&
+      new Date(doctor.expiryDate || doctor.subscriptionExpiry) > now
     ) {
       startDate = new Date(
         doctor.subscriptionExpiry
@@ -495,13 +507,13 @@ const verifyPayment = async (req, res) => {
 
     doctor.isSubscribed = true;
 
-    doctor.subscriptionPlan =
-      planData.name;
+    doctor.planName = planData.name;
+    doctor.subscriptionPlan = planData.name;
 
     doctor.subscriptionStatus = "Active";
 
-    doctor.subscriptionExpiry =
-      expiryDate;
+    doctor.expiryDate = expiryDate;
+    doctor.subscriptionExpiry = expiryDate;
 
     doctor.paymentReference =
       razorpay_payment_id;

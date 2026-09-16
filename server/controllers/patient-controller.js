@@ -2,50 +2,174 @@ const Patient = require("../models/patient-model");
 const Appointment = require("../models/appointment-model");
 const Doctor = require("../models/Doctor-model");
 const { createNotification } = require("./notification-controller");
+const { isDoctorBookable } = require("../utils/doctor-eligibility");
+
+const parseDate = (value) => {
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const getDayRange = (value) => {
+  const start = parseDate(value);
+  if (!start) return null;
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 1);
+  return { start, end };
+};
+
+const isTimeInSchedule = (schedule, time) => {
+  const [hour, minute] = String(time).split("-")[0].trim().split(":").map(Number);
+  if (!Number.isInteger(hour) || !Number.isInteger(minute)) return false;
+  const requestedMinutes = hour * 60 + minute;
+
+  return String(schedule || "").split(",").some((range) => {
+    const [rangeStart, rangeEnd] = range.trim().split("-");
+    if (!rangeStart || !rangeEnd) return false;
+    const [startHour, startMinute] = rangeStart.split(":").map(Number);
+    const [endHour, endMinute] = rangeEnd.split(":").map(Number);
+    return requestedMinutes >= startHour * 60 + startMinute &&
+      requestedMinutes < endHour * 60 + endMinute;
+  });
+};
+
+const getDoctorBranch = (doctor, branchId) => {
+  if (!Array.isArray(doctor.branches) || doctor.branches.length === 0) {
+    return { name: "Main clinic", city: doctor.city, clinicAddress: doctor.clinicAddress, availabilitySchedule: doctor.availabilitySchedule, slotCapacity: doctor.slotCapacity };
+  }
+  const branch = doctor.branches.find((item) => item._id.toString() === String(branchId)) || (!branchId ? doctor.branches[0] : null);
+  return branch && branch.active !== false ? branch : null;
+};
+
+const getDateStatus = (doctor, date, branchId) => {
+  const weekday = new Date(`${date}T12:00:00.000Z`).getUTCDay();
+  const weeklyOff = Array.isArray(doctor.weeklyOffDays) && doctor.weeklyOffDays.includes(weekday);
+  const holiday = Array.isArray(doctor.holidays) && doctor.holidays.find((item) =>
+    item.date === date && (!item.branchId || String(item.branchId) === String(branchId))
+  );
+  return { closed: weeklyOff || Boolean(holiday), reason: holiday?.reason || (weeklyOff ? "Weekly off" : "") };
+};
 
 const patientprofile = async (req, res) => {
   try {
-    const responce = req.body;
-    const formcreated = await Patient.create(responce);
+    if (!req.userID) return res.status(401).json({ msg: "Not authenticated" });
+    const allowedFields = ["name", "age", "gender", "email", "phone", "address", "medicalHistory", "avatar"];
+    const updates = allowedFields.reduce((result, field) => {
+      if (req.body[field] !== undefined) result[field] = req.body[field];
+      return result;
+    }, {});
+    const profile = await Patient.findOneAndUpdate(
+      { userId: req.userID },
+      { $set: updates, $setOnInsert: { userId: req.userID } },
+      { new: true, upsert: true, runValidators: true }
+    );
 
-    res.status(200).json(req.body);
+    return res.status(200).json(profile);
   } catch (error) {
     console.log(error);
+    return res.status(500).json({ msg: "Unable to save patient profile" });
+  }
+};
+
+const getPatientProfile = async (req, res) => {
+  try {
+    if (!req.userID) return res.status(401).json({ msg: "Not authenticated" });
+    const profile = await Patient.findOne({ userId: req.userID }).lean();
+    if (!profile) return res.status(404).json({ msg: "Patient profile not found" });
+    return res.status(200).json(profile);
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ msg: "Unable to load patient profile" });
   }
 };
 
 // Book an appointment (persist to backend + create notification for patient)
 const bookAppointment = async (req, res) => {
   try {
-    const userId = req.userID || req.body.userId;
+    const userId = req.userID;
     const {
       doctorId,
-      doctorName,
       date,
       time,
       reason,
-      patientName,
-      patientUser,
+      branchId,
+      paymentMethod = "cash",
     } = req.body;
 
-    if (!doctorId || !date || !time) {
+    if (!userId || !doctorId || !date || !time || !["cash", "online"].includes(paymentMethod)) {
       return res
         .status(400)
         .json({ msg: "Doctor, date and time are required" });
     }
 
-    const patientUserRef = userId || patientUser;
+    if (req.user?.role !== "Patient") {
+      return res.status(403).json({ msg: "Only patients can book appointments" });
+    }
+
+    const doctor = await Doctor.findById(doctorId);
+    if (!doctor || !isDoctorBookable(doctor)) {
+      return res.status(409).json({ msg: "Doctor is currently unavailable for appointments." });
+    }
+
+    const branch = getDoctorBranch(doctor, branchId);
+    if (!branch) return res.status(409).json({ msg: "Selected clinic branch is unavailable" });
+    const patientUserRef = userId;
+    const dateStatus = getDateStatus(doctor, date, branch._id);
+    if (dateStatus.closed) return res.status(409).json({ msg: `Doctor is unavailable on this date${dateStatus.reason ? ` (${dateStatus.reason})` : ""}` });
+
+    const dayRange = getDayRange(date);
+    const today = parseDate(new Date().toISOString().slice(0, 10));
+    if (!dayRange || dayRange.start < today) {
+      return res.status(400).json({ msg: "Appointment date must be valid and not in the past" });
+    }
+    const requestedMinutes = String(time).split("-")[0];
+    const selectedStart = new Date(`${date}T${requestedMinutes}`);
+    if (dayRange.start.getTime() === today.getTime() && selectedStart <= new Date()) {
+      return res.status(400).json({ msg: "This time has already passed today. Please choose a later slot." });
+    }
+    if (!isTimeInSchedule(branch.availabilitySchedule, time)) {
+      return res.status(409).json({ msg: "Selected time is outside the doctor's availability" });
+    }
+
+    const capacityFilter = {
+      doctor: doctor._id,
+      date: { $gte: dayRange.start, $lt: dayRange.end },
+      time,
+      status: { $ne: "cancelled" },
+    };
+    if (Array.isArray(doctor.branches) && doctor.branches.length) capacityFilter.branchId = branch._id;
+    const bookedCount = await Appointment.countDocuments(capacityFilter);
+    if (bookedCount >= Number(branch.slotCapacity || doctor.slotCapacity || 0)) {
+      return res.status(409).json({ msg: "No appointment slots are available at this time" });
+    }
+
+    const patientConflict = await Appointment.exists({
+      patientUser: patientUserRef,
+      date: { $gte: dayRange.start, $lt: dayRange.end },
+      time,
+      status: { $ne: "cancelled" },
+    });
+    if (patientConflict) {
+      return res.status(409).json({ msg: "You already have an appointment at this date and time" });
+    }
+
+    const patientProfile = await Patient.findOne({ userId }).lean();
+    const patientName = patientProfile?.name || req.user.username || "Patient";
 
     const appointment = await Appointment.create({
-      patient: req.body.patientId || patientUserRef,
+      patient: patientUserRef,
       patientUser: patientUserRef,
-      doctor: doctorId,
-      doctorName: doctorName || "",
-      patientName: patientName || "Patient",
-      date: new Date(date),
+      doctor: doctor._id,
+      doctorName: doctor.name,
+      branchId: Array.isArray(doctor.branches) && doctor.branches.length ? branch._id : undefined,
+      branchName: branch.name,
+      branchCity: branch.city,
+      patientName,
+      date: dayRange.start,
       time,
       status: "pending",
       reason: reason || "Appointment booking",
+      paymentMethod,
+      paymentStatus: paymentMethod === "online" ? "pending" : "unpaid",
     });
 
     // Notify the patient that their booking was received
@@ -54,14 +178,13 @@ const bookAppointment = async (req, res) => {
       role: "Patient",
       type: "booking",
       title: "Appointment Booked",
-      message: `Your appointment with ${doctorName || "the doctor"} on ${new Date(
+      message: `Your appointment with ${doctor.name || "the doctor"} on ${new Date(
         date
       ).toLocaleDateString()} at ${time} has been booked successfully.`,
-      meta: { appointmentId: appointment._id, doctorName, date, time },
+      meta: { appointmentId: appointment._id, doctorName: doctor.name, date, time },
     });
 
     // Notify the doctor about a new appointment
-    const doctor = await Doctor.findById(doctorId);
     if (doctor && doctor.userId) {
       await createNotification({
         userId: doctor.userId,
@@ -114,11 +237,25 @@ const getDoctorAppointments = async (req, res) => {
       return res.status(404).json({ msg: "Doctor profile not found" });
     }
 
-    const appointments = await Appointment.find({ doctor: doctor._id }).sort({
-      date: -1,
-    });
+    const filter = { doctor: doctor._id };
+    if (req.query.date) {
+      const dayRange = getDayRange(req.query.date);
+      if (!dayRange) return res.status(400).json({ msg: "Invalid appointment date" });
+      filter.date = { $gte: dayRange.start, $lt: dayRange.end };
+    }
 
-    return res.status(200).json(appointments || []);
+    const appointments = await Appointment.find(filter).sort({
+      date: -1,
+    }).lean();
+    const patientUserIds = appointments.map((appointment) => appointment.patientUser).filter(Boolean);
+    const profiles = await Patient.find({ userId: { $in: patientUserIds } }).select("userId name").lean();
+    const namesByUserId = new Map(profiles.map((profile) => [profile.userId.toString(), profile.name]));
+    const enrichedAppointments = appointments.map((appointment) => ({
+      ...appointment,
+      patientName: namesByUserId.get(appointment.patientUser?.toString()) || appointment.patientName || "Patient",
+    }));
+
+    return res.status(200).json(enrichedAppointments);
   } catch (error) {
     console.log(error);
     return res.status(500).json({ msg: "Internal server error" });
@@ -131,18 +268,31 @@ const updateAppointmentStatus = async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
 
+    if (["admin", "patient"].includes((req.user?.role || "").toLowerCase())) {
+      return res.status(403).json({ msg: "Only the assigned doctor can manage appointment status" });
+    }
+
     if (!["pending", "confirmed", "cancelled", "completed"].includes(status)) {
       return res.status(400).json({ msg: "Invalid status" });
     }
 
-    const appointment = await Appointment.findByIdAndUpdate(
-      id,
-      { status },
-      { new: true }
-    );
+    const doctor = await Doctor.findOne({ userId: req.userID });
+    const isDoctorOwner = doctor && await Appointment.exists({ _id: id, doctor: doctor._id });
+    const isPatientOwner = await Appointment.exists({ _id: id, patientUser: req.userID });
+
+    if (!isDoctorOwner && (!isPatientOwner || status !== "cancelled")) {
+      return res.status(403).json({ msg: "You are not authorized to update this appointment" });
+    }
+
+    const appointment = await Appointment.findByIdAndUpdate(id, { status }, { new: true });
     if (!appointment) {
       return res.status(404).json({ msg: "Appointment not found" });
     }
+
+    const patientProfile = appointment.patientUser
+      ? await Patient.findOne({ userId: appointment.patientUser }).select("name").lean()
+      : null;
+    if (patientProfile?.name) appointment.patientName = patientProfile.name;
 
     // Notify patient when confirmed/cancelled
     if (appointment.patientUser) {
@@ -197,6 +347,10 @@ const getAppointmentById = async (req, res) => {
     if (!appointment) {
       return res.status(404).json({ msg: "Appointment not found" });
     }
+    const patientProfile = appointment.patientUser
+      ? await Patient.findOne({ userId: appointment.patientUser }).select("name").lean()
+      : null;
+    if (patientProfile?.name) appointment.patientName = patientProfile.name;
 
     // Access control: either the patient who owns it, or the doctor it belongs to
     const isPatientOwner =
@@ -313,13 +467,44 @@ const rescheduleAppointment = async (req, res) => {
         .json({ msg: "Cannot reschedule a cancelled or completed appointment" });
     }
 
-    appointment.date = new Date(date);
+    const doctor = await Doctor.findById(appointment.doctor);
+    if (!doctor || !isDoctorBookable(doctor)) {
+      return res.status(409).json({ msg: "Doctor is currently unavailable for appointments." });
+    }
+    const dayRange = getDayRange(date);
+    const today = parseDate(new Date().toISOString().slice(0, 10));
+    if (!dayRange || dayRange.start < today) {
+      return res.status(400).json({ msg: "Appointment date must be valid and not in the past" });
+    }
+    const branch = getDoctorBranch(doctor, appointment.branchId);
+    if (!branch) return res.status(409).json({ msg: "The selected clinic branch is unavailable" });
+    const selectedStart = new Date(`${date}T${String(time).split("-")[0]}`);
+    if (dayRange.start.getTime() === today.getTime() && selectedStart <= new Date()) {
+      return res.status(400).json({ msg: "This time has already passed today. Please choose a later slot." });
+    }
+    if (!isTimeInSchedule(branch.availabilitySchedule, time)) {
+      return res.status(409).json({ msg: "Selected time is outside the doctor's availability" });
+    }
+    const capacityFilter = {
+      _id: { $ne: appointment._id },
+      doctor: doctor._id,
+      date: { $gte: dayRange.start, $lt: dayRange.end },
+      time,
+      status: { $ne: "cancelled" },
+    };
+    if (appointment.branchId) capacityFilter.branchId = appointment.branchId;
+    const bookedCount = await Appointment.countDocuments(capacityFilter);
+    if (bookedCount >= Number(branch.slotCapacity || doctor.slotCapacity || 0)) {
+      return res.status(409).json({ msg: "No appointment slots are available at this time" });
+    }
+
+    appointment.date = dayRange.start;
     appointment.time = time;
+    appointment.doctorName = doctor.name;
     appointment.status = "pending";
     await appointment.save();
 
     // Let the doctor know the patient moved their slot
-    const doctor = await Doctor.findById(appointment.doctor);
     if (doctor && doctor.userId) {
       await createNotification({
         userId: doctor.userId,
@@ -342,6 +527,7 @@ const rescheduleAppointment = async (req, res) => {
 
 module.exports = {
   patientprofile,
+  getPatientProfile,
   bookAppointment,
   getMyAppointments,
   getDoctorAppointments,

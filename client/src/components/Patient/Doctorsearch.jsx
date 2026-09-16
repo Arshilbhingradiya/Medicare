@@ -65,9 +65,9 @@ const mapped = (Array.isArray(data) ? data : data.doctors || []).map((doc) => {
 
   const filteredDoctors = doctors.filter((doctor) => {
     return (
-      (selectedCity === "" || doctor.city === selectedCity) &&
+      (selectedCity === "" || doctor.city.trim().toLowerCase() === selectedCity.trim().toLowerCase()) &&
       (selectedSpecialization === "" ||
-        doctor.specialization === selectedSpecialization) &&
+        doctor.specialization.trim().toLowerCase() === selectedSpecialization.trim().toLowerCase()) &&
       doctor.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
   });
@@ -96,9 +96,9 @@ const mapped = (Array.isArray(data) ? data : data.doctors || []).map((doc) => {
             onChange={(e) => setSelectedCity(e.target.value)}
           >
             <MenuItem value="">All</MenuItem>
-            <MenuItem value="Delhi">Delhi</MenuItem>
-            <MenuItem value="Mumbai">Mumbai</MenuItem>
-            <MenuItem value="Bangalore">Bangalore</MenuItem>
+            {[...new Set(doctors.map((doctor) => doctor.city).filter(Boolean))].sort().map((city) => (
+              <MenuItem key={city} value={city}>{city}</MenuItem>
+            ))}
           </Select>
         </FormControl>
 
@@ -110,10 +110,9 @@ const mapped = (Array.isArray(data) ? data : data.doctors || []).map((doc) => {
             onChange={(e) => setSelectedSpecialization(e.target.value)}
           >
             <MenuItem value="">All</MenuItem>
-            <MenuItem value="Cardiologist">Cardiologist</MenuItem>
-            <MenuItem value="Dermatologist">Dermatologist</MenuItem>
-            <MenuItem value="Neurologist">Neurologist</MenuItem>
-            <MenuItem value="Pediatrician">Pediatrician</MenuItem>
+            {[...new Set(doctors.map((doctor) => doctor.specialization).filter(Boolean))].sort().map((specialization) => (
+              <MenuItem key={specialization} value={specialization}>{specialization}</MenuItem>
+            ))}
           </Select>
         </FormControl>
       </div>

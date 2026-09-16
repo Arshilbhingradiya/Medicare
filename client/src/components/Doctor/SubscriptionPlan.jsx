@@ -1062,7 +1062,7 @@ const SubscriptionPlan = () => {
                   </Typography>
                   <Box sx={{ display: "inline-block", p: 2, bgcolor: "white", border: "2px solid #e3f2fd", borderRadius: 3, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
                     <img
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=upi://pay?pa=medicare@upi%26pn=Medicare%26am=${selectedPlan?.price}%26cu=INR`}
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=upi://pay?pa=Docify@upi%26pn=Docify%26am=${selectedPlan?.price}%26cu=INR`}
                       alt="UPI QR Code"
                       width="180"
                       height="180"

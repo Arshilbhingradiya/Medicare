@@ -45,6 +45,7 @@ if (!user?.isAdmin && (user?.role || "").toLowerCase() !== "admin") {
     { label: "Dashboard", path: "/Admin", icon: <DashboardRounded /> },
 { label: "Users", path: "/Admin/users", icon: <Group /> },
     { label: "Contacts", path: "/Admin/contacts", icon: <Mail /> },
+    { label: "Doctor Verification", path: "/Admin/status", icon: <MedicalServices /> },
     { label: "Subscriptions", path: "/Admin/subscriptions", icon: <CreditCard /> },
   ];
 
@@ -61,7 +62,7 @@ const handleLogout = () => {
           Admin Panel
         </Typography>
         <Typography variant="caption" sx={{ opacity: 0.8 }}>
-          MediCare Administration
+          Docify Administration
         </Typography>
       </Box>
       <Divider sx={{ bgcolor: "rgba(255,255,255,0.2)" }} />

@@ -53,6 +53,7 @@ import {
   Verified,
   ErrorOutline,
   Refresh,
+  SmartToy,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../store/auth";
@@ -70,6 +71,8 @@ const PatientRecords = () => {
   const [anchorEl, setAnchorEl] = useState(null);
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [expandedCards, setExpandedCards] = useState({});
+  const [aiSummary, setAiSummary] = useState("");
+  const [summaryLoading, setSummaryLoading] = useState(false);
 
   // Fetch all appointments from MongoDB
   useEffect(() => {
@@ -225,6 +228,49 @@ const PatientRecords = () => {
     handleMenuClose();
   };
 
+  const generateSummary = async (record) => {
+    if (!record) return;
+    setSummaryLoading(true);
+    setAiSummary("");
+    try {
+      const response = await fetch(`${API_URL}/api/assistant/summarize-record`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: authorizationtoken },
+        body: JSON.stringify({ record }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Summary unavailable");
+      setAiSummary(data.summary);
+    } catch (error) {
+      setAiSummary(error.message || "Unable to generate summary");
+    } finally {
+      setSummaryLoading(false);
+      handleMenuClose();
+    }
+  };
+
+  const downloadReport = (items = filteredRecords) => {
+    const escapeCell = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+    const rows = [
+      ["Patient Name", "Date", "Time", "Status"],
+      ...items.map((record) => [
+        record.patientName || "Patient",
+        formatDate(record.date),
+        formatTime(record.time),
+        record.status || "pending",
+      ]),
+    ];
+    const csv = rows.map((row) => row.map(escapeCell).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `patient-appointments-${selectedDate || "all"}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    handleMenuClose();
+  };
+
   const toggleExpand = (id) => {
     setExpandedCards((prev) => ({
       ...prev,
@@ -254,6 +300,11 @@ const PatientRecords = () => {
           overflow: "hidden",
         }}
       >
+        {aiSummary && (
+          <Alert severity="info" icon={<SmartToy />} sx={{ mb: 2, whiteSpace: "pre-wrap" }} onClose={() => setAiSummary("")}>
+            <strong>AI record summary</strong>{"\n"}{aiSummary}
+          </Alert>
+        )}
         <Box sx={{ position: "absolute", top: -50, right: -50, width: 200, height: 200, borderRadius: "50%", background: "rgba(255,255,255,0.1)" }} />
         <Box sx={{ position: "absolute", bottom: -30, left: -20, width: 150, height: 150, borderRadius: "50%", background: "rgba(255,255,255,0.05)" }} />
 
@@ -728,9 +779,17 @@ const PatientRecords = () => {
           <Notes sx={{ mr: 1.5, fontSize: 20 }} />
           View Notes
         </MenuItem>
-        <MenuItem onClick={handleMenuClose}>
+        <MenuItem onClick={() => downloadReport(selectedRecord ? [selectedRecord] : filteredRecords)}>
           <Download sx={{ mr: 1.5, fontSize: 20 }} />
-          Download Report
+          Download Appointment
+        </MenuItem>
+        <MenuItem onClick={() => downloadReport(filteredRecords)}>
+          <Download sx={{ mr: 1.5, fontSize: 20 }} />
+          Download Filtered History
+        </MenuItem>
+        <MenuItem disabled={summaryLoading || !selectedRecord} onClick={() => generateSummary(selectedRecord)}>
+          <SmartToy sx={{ mr: 1.5, fontSize: 20 }} />
+          {summaryLoading ? "Generating summary..." : "Generate AI Summary"}
         </MenuItem>
       </Menu>
     </Container>

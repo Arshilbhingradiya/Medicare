@@ -16,6 +16,7 @@ router.route("/contacts/delete/:id").delete(authMiddleware,adminMiddleware,admin
 
 // Doctor subscription management
 router.route("/doctors").get(authMiddleware,adminMiddleware,admindata.getAllDoctors);
+router.route("/doctors/:id/status").patch(authMiddleware,adminMiddleware,admindata.updateDoctorApproval);
 router.route("/subscriptions").get(authMiddleware,adminMiddleware,admindata.getAllSubscriptions);
 router.route("/doctors/subscription/:id").patch(authMiddleware,adminMiddleware,admindata.updateDoctorSubscription);
 

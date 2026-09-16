@@ -199,7 +199,7 @@ const Contact = () => {
           <Grid container spacing={4} justifyContent="space-between">
             <Grid item xs={12} md={4}>
               <Typography variant="h5" fontWeight="bold" gutterBottom color="primary.light">
-                MediCare
+                Docify
               </Typography>
               <Typography variant="body2" sx={{ opacity: 0.7, lineHeight: 1.8 }}>
                 Your trusted healthcare partner, providing seamless medical

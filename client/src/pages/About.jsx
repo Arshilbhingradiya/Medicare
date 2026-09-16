@@ -97,47 +97,20 @@ const About = () => {
 
   const teamMembers = [
     {
-      name: "Dr. Arshil Bhingradiya",
+      name: "Mr.. Arshil Bhingradiya",
       role: "CEO & Founder",
-      desc: "Over 15 years of experience in healthcare management and digital health innovation.",
+      desc: "Over 2+ years of experience in Responsive web design and Api development.",
       image: "./profile.png",
       specialty: "Healthcare Management",
     },
     {
-      name: "Dr. Priya Sharma",
-      role: "CTO & Co-Founder",
-      desc: "Passionate about leveraging AI and technology to transform healthcare delivery.",
-      image: "./profile.png",
-      specialty: "HealthTech & AI",
-    },
-    {
-      name: "Dr. Raj Patel",
-      role: "Head of Medical Affairs",
-      desc: "Ensuring the highest standards of medical care and patient safety across platforms.",
-      image: "./profile.png",
-      specialty: "Medical Director",
-    },
-    {
-      name: "Dr. Sarah Johnson",
+      name: "Mr. Arshil Bhingradiya",
       role: "Lead Developer",
       desc: "Building robust, user-friendly healthcare solutions with modern technology.",
       image: "./profile.png",
       specialty: "Full Stack Development",
     },
-    {
-      name: "Dr. Amit Kumar",
-      role: "Head of Operations",
-      desc: "Managing seamless operations and ensuring excellent patient experiences.",
-      image: "./profile.png",
-      specialty: "Operations & Logistics",
-    },
-    {
-      name: "Dr. Emily Chen",
-      role: "Head of Patient Care",
-      desc: "Dedicated to providing exceptional patient support and care coordination.",
-      image: "./profile.png",
-      specialty: "Patient Relations",
-    },
+    
   ];
 
   const achievements = [
@@ -180,7 +153,7 @@ const About = () => {
     {
       year: "2020",
       title: "Founded",
-      desc: "MediCare was founded with a vision to revolutionize healthcare access.",
+      desc: "Docify was founded with a vision to revolutionize healthcare access.",
       icon: <RocketLaunch sx={{ fontSize: 24 }} />,
     },
     {
@@ -320,7 +293,7 @@ const About = () => {
             <motion.div variants={fadeUp}>
               <Chip
                 icon={<Verified sx={{ fontSize: 20 }} />}
-                label="About MediCare"
+                label="About Docify"
                 sx={{
                   mb: 4,
                   bgcolor: "rgba(255,255,255,0.15)",
@@ -581,10 +554,10 @@ const About = () => {
               <motion.div variants={fadeUp} sx={{ textAlign: "center", mb: 6 }}>
                 <Chip label="Our Team" color="primary" sx={{ mb: 2, fontWeight: 700 }} />
                 <Typography variant="h3" component="h2" gutterBottom sx={{ fontWeight: 800 }}>
-                  Meet Our Experts
+                  Meet Our Teams
                 </Typography>
                 <Typography variant="subtitle1" color="text.secondary">
-                  The passionate team behind MediCare
+                  The passionate team behind Docify
                 </Typography>
               </motion.div>
 
@@ -761,7 +734,7 @@ const About = () => {
                 Ready to Experience Better Healthcare?
               </Typography>
               <Typography variant="h6" color="rgba(255,255,255,0.9)" sx={{ mb: 4, maxWidth: 600, mx: "auto" }}>
-                Join thousands of satisfied patients who trust MediCare for their healthcare needs.
+                Join thousands of satisfied patients who trust Docify for their healthcare needs.
               </Typography>
               <Stack direction={{ xs: "column", sm: "row" }} spacing={2} justifyContent="center">
                 <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
@@ -802,7 +775,7 @@ const About = () => {
                     <MedicalServices sx={{ color: "#FFEB3B", fontSize: 32 }} />
                   </Box>
                   <Typography variant="h5" fontWeight={800}>
-                    MediCare
+                    Docify
                   </Typography>
                 </Stack>
                 <Typography variant="body2" sx={{ opacity: 0.9 }}>
@@ -835,20 +808,12 @@ const About = () => {
                 </Typography>
                 <Stack spacing={1.5}>
                   <Stack direction="row" alignItems="center" spacing={1}>
-                    <LocationOn sx={{ fontSize: 20 }} />
-                    <Typography variant="body2">123 Health St, New York, NY</Typography>
-                  </Stack>
-                  <Stack direction="row" alignItems="center" spacing={1}>
                     <Phone sx={{ fontSize: 20 }} />
-                    <Typography variant="body2">+1 800 123 4567</Typography>
+                    <Typography variant="body2">+91 8980597631</Typography>
                   </Stack>
                   <Stack direction="row" alignItems="center" spacing={1}>
                     <Email sx={{ fontSize: 20 }} />
-                    <Typography variant="body2">support@medicare.com</Typography>
-                  </Stack>
-                  <Stack direction="row" alignItems="center" spacing={1}>
-                    <AccessTime sx={{ fontSize: 20 }} />
-                    <Typography variant="body2">Mon-Sat: 9:00 AM - 9:00 PM</Typography>
+                    <Typography variant="body2">inshell0911@gmail.com</Typography>
                   </Stack>
                 </Stack>
               </Grid>
@@ -856,7 +821,7 @@ const About = () => {
             <Divider sx={{ my: 4, bgcolor: "rgba(255,255,255,0.2)" }} />
             <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" alignItems="center">
               <Typography variant="body2" sx={{ opacity: 0.8 }}>
-                © 2024 MediCare. All rights reserved.
+                © 2024 Docify. All rights reserved.
               </Typography>
               <Stack direction="row" spacing={2}>
                 <Typography variant="body2" sx={{ opacity: 0.8 }}>Privacy Policy</Typography>

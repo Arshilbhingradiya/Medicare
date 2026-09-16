@@ -16,8 +16,10 @@ const adminrouter = require("./router/admin-router");
 const patientrouter = require("./router/patient-router");
 const doctorrouter = require("./router/doctor-router");
 const notificationrouter = require("./router/notification-router");
+const assistantrouter = require("./router/assistant-router");
 const googleAuthRoutes = require("./router/google-auth.js");
 const razorpayController = require("./controllers/razorpay-controller");
+const { sendAppointmentReminders } = require("./services/appointment-automation");
 app.use(session({ secret: "secret", resave: false, saveUninitialized: true }));
 
 app.use(passport.initialize());
@@ -67,6 +69,7 @@ app.use("/api/doctorform", doctorrouter);
 
 // Notification panel
 app.use("/api/notifications", notificationrouter);
+app.use("/api/assistant", assistantrouter);
 
 app.use(
   cors({
@@ -122,6 +125,10 @@ connectdb();
 setInterval(() => {
   razorpayController.sendRenewalReminders();
 }, 6 * 60 * 60 * 1000);
+
+setInterval(() => {
+  sendAppointmentReminders().catch((error) => console.error("Appointment reminder job error:", error));
+}, 15 * 60 * 1000);
 
 app.listen(3000, () => {
   console.log(`server is running on 3000`);

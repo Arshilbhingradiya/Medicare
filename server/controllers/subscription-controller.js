@@ -62,6 +62,9 @@ const enrollSubscription = async (req, res) => {
     if (!doctor) {
       return res.status(404).json({ msg: "Doctor profile not found. Please complete your profile first." });
     }
+    if (doctor.status !== "approved" || doctor.adminApproved !== true) {
+      return res.status(403).json({ msg: "Admin approval is required before activating a subscription." });
+    }
 
     const planData = await SubscriptionPlan.findOne({ name: plan });
     if (!planData) {
@@ -99,8 +102,11 @@ const enrollSubscription = async (req, res) => {
     }
 
     // Update doctor record
+    doctor.planName = planData.name;
     doctor.subscriptionPlan = planData.name;
     doctor.subscriptionStatus = "Active";
+    doctor.isSubscribed = true;
+    doctor.expiryDate = expiryDate;
     doctor.subscriptionExpiry = expiryDate;
     await doctor.save();
 

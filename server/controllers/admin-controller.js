@@ -188,6 +188,37 @@ const updateDoctorSubscription = async (req, res) => {
     }
 };
 
+const updateDoctorApproval = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { status, rejectionReason = "" } = req.body;
+        if (!["pending", "approved", "rejected"].includes(status)) {
+            return res.status(400).json({ msg: "Invalid doctor approval status" });
+        }
+
+        const doctor = await Doctor.findByIdAndUpdate(
+            id,
+            { $set: { status, adminApproved: status === "approved", rejectionReason: status === "rejected" ? rejectionReason : "" } },
+            { new: true, runValidators: true }
+        );
+        if (!doctor) return res.status(404).json({ msg: "Doctor not found" });
+        if (doctor.userId) {
+            await createNotification({
+                userId: doctor.userId,
+                role: "Doctor",
+                type: "system",
+                title: `Verification ${status}`,
+                message: status === "rejected" ? `Your verification was rejected. ${rejectionReason || "Please review your documents and resubmit."}` : `Your doctor verification was ${status}.`,
+                meta: { doctorId: doctor._id, status },
+            });
+        }
+        return res.status(200).json(doctor);
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({ msg: "Internal server error" });
+    }
+};
+
 // ===== Subscription Plan Management (Admin) =====
 
 const getAllPlans = async (req, res) => {
@@ -353,5 +384,5 @@ const getAnalytics = async (req, res) => {
 };
 
 module.exports = {getAllUsers , getAllContacts , getdeleteuserbyid, userbyid , updateuserbyid , getdeleteContacts,
-    getAllDoctors, getAllSubscriptions, updateDoctorSubscription,
+    getAllDoctors, getAllSubscriptions, updateDoctorSubscription, updateDoctorApproval,
     getAllPlans, createPlan, updatePlan, deletePlan, getAnalytics};

@@ -9,6 +9,9 @@ import {
   Snackbar,
   Alert,
   MenuItem,
+  Select,
+  FormControl,
+  InputLabel,
   Grid,
   Avatar,
   IconButton,
@@ -16,7 +19,7 @@ import {
   Stack,
   Divider,
 } from "@mui/material";
-import { PhotoCamera } from "@mui/icons-material";
+import { Add, Delete, PhotoCamera } from "@mui/icons-material";
 import { useAuth } from "../../store/auth";
 import { API_URL } from "../../config";
 export default function DoctorProfile() {
@@ -35,43 +38,89 @@ export default function DoctorProfile() {
     slotCapacity: "4",
     bio: "",
     profileImage: "",
+    consultationFee: "",
+    branches: [],
+    weeklyOffDays: [],
+    holidays: [],
   });
 
   const [openSnackbar, setOpenSnackbar] = useState(false);
+  const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState("success");
+  const [saving, setSaving] = useState(false);
   const [imagePreview, setImagePreview] = useState("");
-  const { user } = useAuth();
+  const { authorizationtoken, IsLoading, isLoggedIn } = useAuth();
 
-  useEffect(() => {
-    const fetchProfile = async () => {
-      const token = localStorage.getItem("token");
-      if (!token) return;
-      try {
-        const res = await fetch(`${API_URL}/api/doctorform/profile/mine`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setDoctor((prev) => ({ ...prev, ...data }));
-          setImagePreview(data.profileImage || "");
-          return;
+ useEffect(() => {
+  const fetchProfile = async () => {
+    if (IsLoading || !isLoggedIn || !authorizationtoken) {
+      return;
+    }
+
+    try {
+      const res = await fetch(
+        `${API_URL}/api/doctorform/profile/mine`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: authorizationtoken,
+          },
         }
-      } catch (err) {
-        console.error("Failed to load doctor profile:", err);
-      }
-      if (user) {
+      );
+
+      const data = await res.json();
+
+      if (res.ok) {
         setDoctor((prev) => ({
           ...prev,
-          name: user.name || user.username || "",
-          email: user.email || "",
-          phone: user.phone || "",
+          ...data,
         }));
+
+        setImagePreview(data.profileImage || "");
+
+        console.log("Doctor profile loaded:", data);
+      } else if (res.status === 404) {
+        // Profile doesn't exist yet
+        // Keep the empty form
+        console.log("Doctor profile not created yet");
+      } else {
+        setMessage(data.msg || "Unable to load your doctor profile.");
+        setMessageType("error");
       }
-    };
-    fetchProfile();
-  }, [user]);
+    } catch (error) {
+      console.error(
+        "Error fetching doctor profile:",
+        error
+      );
+    }
+  };
+
+  fetchProfile();
+}, [IsLoading, isLoggedIn, authorizationtoken]);
 
   const handleChange = (e) => {
     setDoctor({ ...doctor, [e.target.name]: e.target.value });
+  };
+
+  const updateBranch = (index, field, value) => {
+    setDoctor((current) => ({
+      ...current,
+      branches: current.branches.map((branch, branchIndex) => branchIndex === index ? { ...branch, [field]: value } : branch),
+    }));
+  };
+
+  const addBranch = () => {
+    setDoctor((current) => ({
+      ...current,
+      branches: [...current.branches, { name: "", city: "", clinicAddress: "", availabilitySchedule: "09:00-13:00,17:00-20:00", slotCapacity: 4, active: true }],
+    }));
+  };
+
+  const addHoliday = () => {
+    setDoctor((current) => ({
+      ...current,
+      holidays: [...current.holidays, { date: "", reason: "Holiday" }],
+    }));
   };
 
   const handleImageChange = (e) => {
@@ -88,50 +137,68 @@ export default function DoctorProfile() {
     }
   };
 
-  const isEqual = (obj1, obj2) => {
-    return JSON.stringify(obj1) === JSON.stringify(obj2);
-  };
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  setMessage("");
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    const storedDoctor = JSON.parse(localStorage.getItem("doctorProfile"));
-
-    if (storedDoctor && isEqual(doctor, storedDoctor)) {
-      console.log("No changes detected. Skipping save.");
-      alert("No changes made.");
+  try {
+    if (IsLoading || !isLoggedIn || !authorizationtoken) {
+      setMessage("Your login session is not ready. Please log in again and try once more.");
+      setMessageType("error");
       return;
     }
 
-    try {
-      localStorage.setItem("doctorProfile", JSON.stringify(doctor));
-      console.log("Profile saved:", doctor);
-      setOpenSnackbar(true);
-
-      const response = await fetch(
-        `${API_URL}/api/doctorform/doctorprofile`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: localStorage.getItem("token")
-              ? `Bearer ${localStorage.getItem("token")}`
-              : "",
-          },
-          body: JSON.stringify({ ...doctor, userId: user?.id }),
-        }
-      );
-
-      if (response.ok) {
-        window.dispatchEvent(new Event("profile-updated"));
-        console.log("Profile saved to server");
-      } else {
-        console.error("Failed to save profile");
-      }
-    } catch (error) {
-      console.error("Error saving profile:", error);
+    if ((doctor.holidays || []).some((holiday) => !holiday.date)) {
+      setMessage("Please select a date for every holiday, or remove the empty holiday row.");
+      setMessageType("error");
+      return;
     }
-  };
+
+    setSaving(true);
+
+    const response = await fetch(
+      `${API_URL}/api/doctorform/doctorprofile`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: authorizationtoken,
+        },
+        body: JSON.stringify(doctor),
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.msg || "Failed to save profile");
+    }
+
+    // Update React state with the data returned by backend
+    setDoctor((prev) => ({
+      ...prev,
+      ...data,
+    }));
+
+    // Update profile image preview
+    setImagePreview(data.profileImage || "");
+
+    // Notify other components if they need profile information
+    window.dispatchEvent(new Event("profile-updated"));
+
+    setMessage("Profile saved successfully.");
+    setMessageType("success");
+    setOpenSnackbar(true);
+
+    console.log("Doctor profile saved successfully:", data);
+  } catch (error) {
+    console.error("Error saving doctor profile:", error);
+    setMessage(error.message || "Unable to save your profile. Please try again.");
+    setMessageType("error");
+  } finally {
+    setSaving(false);
+  }
+};
 
   const handleCloseSnackbar = () => setOpenSnackbar(false);
 
@@ -242,6 +309,9 @@ export default function DoctorProfile() {
                 <TextField fullWidth label="Patients per slot" name="slotCapacity" type="number" variant="outlined" value={doctor.slotCapacity} onChange={handleChange} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }} />
               </Grid>
               <Grid item xs={12} sm={6}>
+                <TextField fullWidth label="Consultation fee (INR)" name="consultationFee" type="number" variant="outlined" value={doctor.consultationFee} onChange={handleChange} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }} />
+              </Grid>
+              <Grid item xs={12} sm={6}>
                 <TextField fullWidth label="Clinic Address" name="clinicAddress" variant="outlined" value={doctor.clinicAddress} onChange={handleChange} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }} />
               </Grid>
               <Grid item xs={12} sm={6}>
@@ -253,8 +323,60 @@ export default function DoctorProfile() {
             </Grid>
           </Box>
 
-          <Button fullWidth variant="contained" size="large" onClick={handleSubmit} sx={{ mt: 4, borderRadius: 2, py: 1.4, fontWeight: 700, textTransform: "none", background: "linear-gradient(135deg, #0d47a1 0%, #1976d2 100%)", boxShadow: "0 8px 20px rgba(25, 118, 210, 0.25)", '&:hover': { background: "linear-gradient(135deg, #08306b 0%, #1565c0 100%)" } }}>
-            Save Profile
+          <Box sx={{ mt: 3, p: { xs: 2, md: 2.5 }, borderRadius: 3, bgcolor: "#fffaf5", border: "1px solid #ffe0b2" }}>
+            <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+              <Box>
+                <Typography variant="subtitle1" sx={{ fontWeight: 700, color: "#9a4d00" }}>Clinic branches</Typography>
+                <Typography variant="body2" color="text.secondary">Each branch can have its own city, timing, address, and hourly capacity.</Typography>
+              </Box>
+              <Button size="small" startIcon={<Add />} onClick={addBranch}>Add branch</Button>
+            </Stack>
+            <Stack spacing={2}>
+              {doctor.branches.map((branch, index) => (
+                <Box key={branch._id || index} sx={{ p: 2, bgcolor: "white", borderRadius: 2, border: "1px solid #ffe0b2" }}>
+                  <Grid container spacing={2}>
+                    {[["name", "Branch name"], ["city", "City"], ["clinicAddress", "Clinic address"], ["availabilitySchedule", "Schedule e.g. 09:00-13:00,17:00-20:00"]].map(([field, label]) => (
+                      <Grid item xs={12} sm={field === "availabilitySchedule" || field === "clinicAddress" ? 6 : 4} key={field}>
+                        <TextField fullWidth label={label} value={branch[field] || ""} onChange={(event) => updateBranch(index, field, event.target.value)} size="small" />
+                      </Grid>
+                    ))}
+                    <Grid item xs={10} sm={3}><TextField fullWidth label="Patients per slot" type="number" value={branch.slotCapacity || 4} onChange={(event) => updateBranch(index, "slotCapacity", Number(event.target.value))} size="small" /></Grid>
+                    <Grid item xs={2} sm={1} sx={{ display: "flex", alignItems: "center" }}><IconButton color="error" aria-label="Remove branch" onClick={() => setDoctor((current) => ({ ...current, branches: current.branches.filter((_, branchIndex) => branchIndex !== index) }))}><Delete /></IconButton></Grid>
+                  </Grid>
+                </Box>
+              ))}
+            </Stack>
+          </Box>
+
+          <Box sx={{ mt: 3, p: { xs: 2, md: 2.5 }, borderRadius: 3, bgcolor: "#fff8f8", border: "1px solid #ffcdd2" }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 700, color: "#b71c1c", mb: 1 }}>Time off and holidays</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>Patients cannot book on selected weekly off-days or holiday dates.</Typography>
+            <FormControl fullWidth size="small" sx={{ mb: 2 }}>
+              <InputLabel>Weekly off-days</InputLabel>
+              <Select multiple value={doctor.weeklyOffDays || []} label="Weekly off-days" onChange={(event) => setDoctor((current) => ({ ...current, weeklyOffDays: event.target.value }))} renderValue={(selected) => selected.map((day) => ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][day]).join(", ")}>
+                {["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].map((day, index) => <MenuItem key={day} value={index}>{day}</MenuItem>)}
+              </Select>
+            </FormControl>
+            <Stack spacing={1.5}>
+              {(doctor.holidays || []).map((holiday, index) => (
+                <Stack direction={{ xs: "column", sm: "row" }} spacing={1} key={index}>
+                  <TextField fullWidth size="small" type="date" label="Holiday date" InputLabelProps={{ shrink: true }} value={holiday.date || ""} onChange={(event) => setDoctor((current) => ({ ...current, holidays: current.holidays.map((item, itemIndex) => itemIndex === index ? { ...item, date: event.target.value } : item) }))} />
+                  <TextField fullWidth size="small" label="Reason" value={holiday.reason || ""} onChange={(event) => setDoctor((current) => ({ ...current, holidays: current.holidays.map((item, itemIndex) => itemIndex === index ? { ...item, reason: event.target.value } : item) }))} />
+                  <IconButton color="error" aria-label="Remove holiday" onClick={() => setDoctor((current) => ({ ...current, holidays: current.holidays.filter((_, itemIndex) => itemIndex !== index) }))}><Delete /></IconButton>
+                </Stack>
+              ))}
+              <Button variant="outlined" size="small" startIcon={<Add />} onClick={addHoliday} sx={{ alignSelf: "flex-start" }}>Add holiday</Button>
+            </Stack>
+          </Box>
+
+          {message && (
+            <Alert severity={messageType} sx={{ mt: 3 }}>
+              {message}
+            </Alert>
+          )}
+
+          <Button fullWidth variant="contained" size="large" onClick={handleSubmit} disabled={saving || IsLoading || !isLoggedIn} sx={{ mt: 4, borderRadius: 2, py: 1.4, fontWeight: 700, textTransform: "none", background: "linear-gradient(135deg, #0d47a1 0%, #1976d2 100%)", boxShadow: "0 8px 20px rgba(25, 118, 210, 0.25)", '&:hover': { background: "linear-gradient(135deg, #08306b 0%, #1565c0 100%)" } }}>
+            {saving ? "Saving profile..." : IsLoading ? "Checking login..." : "Save Profile"}
           </Button>
 
           <Snackbar open={openSnackbar} autoHideDuration={3000} onClose={handleCloseSnackbar}>

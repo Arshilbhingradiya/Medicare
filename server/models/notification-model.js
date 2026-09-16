@@ -18,6 +18,8 @@ const notificationSchema = new mongoose.Schema(
         "booking",
         "booking_confirmed",
         "booking_cancelled",
+        "appointment_reminder",
+        "appointment_summary",
         "subscription",
         "trial",
         "system",

@@ -3,7 +3,7 @@ const mongoose = require("mongoose");
 const appointmentSchema = new mongoose.Schema({
   patient: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'patientprofile',
+    ref: 'Users',
     required: true
   },
   patientUser: {
@@ -25,6 +25,20 @@ const appointmentSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  branchId: { type: mongoose.Schema.Types.ObjectId },
+  branchName: { type: String },
+  branchCity: { type: String },
+  paymentMethod: {
+    type: String,
+    enum: ["cash", "online"],
+    default: "cash",
+  },
+  paymentStatus: {
+    type: String,
+    enum: ["unpaid", "pending", "paid", "refunded"],
+    default: "unpaid",
+  },
+  paymentReference: { type: String },
   status: {
     type: String,
     enum: ['pending', 'confirmed', 'cancelled', 'completed'],

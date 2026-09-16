@@ -21,7 +21,6 @@ import {
   CardActionArea,
   Avatar,
   Divider,
-  Tooltip,
   Fade,
   Grow,
   Skeleton,
@@ -39,48 +38,15 @@ import {
   CheckCircle,
   ArrowBack,
   ArrowForward,
-  Groups,
+  Mic,
+  Stop,
 } from "@mui/icons-material";
 
 const defaultDoctors = [];
 
-const parseSchedule = (schedule) => {
-  if (!schedule) return [];
-  return schedule
-    .split(",")
-    .map((entry) => entry.trim())
-    .filter(Boolean)
-    .map((entry) => {
-      const [start, end] = entry.split("-").map((value) => value.trim());
-      return { start, end };
-    });
-};
-
-const createTimeSlots = (schedule, capacity) => {
-  const slots = [];
-  const ranges = parseSchedule(schedule);
-
-  ranges.forEach(({ start, end }) => {
-    const startHour = Number(start.split(":")[0]);
-    const endHour = Number(end.split(":")[0]);
-    for (let hour = startHour; hour < endHour; hour += 1) {
-      slots.push({
-        label: `${String(hour).padStart(2, "0")}:00-${String(hour + 1).padStart(2, "0")}:00`,
-        capacity,
-      });
-    }
-  });
-
-  return slots;
-};
-
-const getBookings = () => {
-  if (typeof window === "undefined") return [];
-  try {
-    return JSON.parse(localStorage.getItem("appointmentBookings") || "[]");
-  } catch {
-    return [];
-  }
+const getTodayInputValue = () => {
+  const today = new Date();
+  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
 };
 
 const PatientAppointment = () => {
@@ -93,6 +59,11 @@ const PatientAppointment = () => {
   const [doctors, setDoctors] = useState([]);
   const [filteredDoctors, setFilteredDoctors] = useState(defaultDoctors);
   const [selectedDoctor, setSelectedDoctor] = useState("");
+  const [selectedBranchId, setSelectedBranchId] = useState("");
+  const [availableSlotData, setAvailableSlotData] = useState([]);
+  const [dateClosed, setDateClosed] = useState(false);
+  const [dateClosedReason, setDateClosedReason] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("cash");
 
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -103,15 +74,21 @@ const PatientAppointment = () => {
   const [availableSlots, setAvailableSlots] = useState(0);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("info");
-  const [bookings, setBookings] = useState(getBookings());
   const [bookingSuccess, setBookingSuccess] = useState(false);
+  const [voiceSearching, setVoiceSearching] = useState(false);
   const { user } = useAuth();
 
   useEffect(() => {
     const fetchDoctors = async () => {
       setLoadingDoctors(true);
       try {
-        const response = await fetch(`${API_URL}/api/doctorform/doctors?page=${currentPage}&limit=10`);
+        const params = new URLSearchParams({
+          page: String(currentPage),
+          limit: "10",
+          ...(filters.city ? { city: filters.city } : {}),
+          ...(filters.specialization ? { specialization: filters.specialization } : {}),
+        });
+        const response = await fetch(`${API_URL}/api/doctorform/doctors?${params}`);
         if (response.ok) {
           const data = await response.json();
 
@@ -133,6 +110,8 @@ const PatientAppointment = () => {
             yearsOfExperience: doc.yearsOfExperience,
             qualifications: doc.qualifications,
             bio: doc.bio,
+            consultationFee: Number(doc.consultationFee || 0),
+            branches: doc.branches || [],
           }));
 
           setDoctors(mapped);
@@ -146,13 +125,13 @@ const PatientAppointment = () => {
     };
 
     fetchDoctors();
-  }, [currentPage]);
+  }, [currentPage, filters.city, filters.specialization]);
 
   useEffect(() => {
     const filtered = doctors.filter(
       (doc) =>
-        (filters.city ? doc.city === filters.city : true) &&
-        (filters.specialization ? doc.specialization === filters.specialization : true) &&
+        (filters.city ? doc.city.toLowerCase() === filters.city.toLowerCase() : true) &&
+        (filters.specialization ? doc.specialization.toLowerCase() === filters.specialization.toLowerCase() : true) &&
         (filters.name ? doc.name.toLowerCase().includes(filters.name.toLowerCase()) : true)
     );
     setFilteredDoctors(filtered);
@@ -160,6 +139,29 @@ const PatientAppointment = () => {
 
   const handleFilterChange = (e) => {
     setFilters({ ...filters, [e.target.name]: e.target.value });
+  };
+
+  const handleVoiceSearch = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setMessage("Voice search is not supported in this browser.");
+      setMessageType("warning");
+      return;
+    }
+    const recognition = new SpeechRecognition();
+    recognition.lang = "en-IN";
+    recognition.onstart = () => setVoiceSearching(true);
+    recognition.onend = () => setVoiceSearching(false);
+    recognition.onerror = () => {
+      setVoiceSearching(false);
+      setMessage("Voice search could not understand that. Please try again.");
+      setMessageType("warning");
+    };
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      setFilters((current) => ({ ...current, name: transcript }));
+    };
+    recognition.start();
   };
 
   const handleNextPage = () => {
@@ -172,6 +174,11 @@ const PatientAppointment = () => {
 
   const handleDoctorChange = (doctorName) => {
     setSelectedDoctor(doctorName);
+    const nextDoctor = doctors.find((doctor) => doctor.name === doctorName);
+    setSelectedBranchId(nextDoctor?.branches?.[0]?._id || "");
+    setAvailableSlotData([]);
+    setDateClosed(false);
+    setDateClosedReason("");
     setSelectedTime("");
     setAvailableSlots(0);
     setMessage("");
@@ -183,10 +190,35 @@ const PatientAppointment = () => {
     setSelectedDate(event.target.value);
     setSelectedTime("");
     setAvailableSlots(0);
+    setAvailableSlotData([]);
     setMessage("");
     setMessageType("info");
     setBookingSuccess(false);
   };
+
+  useEffect(() => {
+    const selectedDoc = doctors.find((doctor) => doctor.name === selectedDoctor);
+    if (!selectedDoc || !selectedDate) return;
+    const loadAvailability = async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/doctorform/doctors/${selectedDoc.id}/availability?date=${selectedDate}`);
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.msg || "Unable to load availability");
+        setDateClosed(Boolean(data.closed));
+        setDateClosedReason(data.closedReason || "Doctor is unavailable on this date");
+        const branch = data.branches?.find((item) => String(item.branchId || "") === String(selectedBranchId)) || data.branches?.[0];
+        if (branch && !selectedBranchId) setSelectedBranchId(branch.branchId || "");
+        setDateClosed(Boolean(data.closed || branch?.closed));
+        setDateClosedReason(branch?.closedReason || data.closedReason || "Doctor is unavailable on this date");
+        setAvailableSlotData(branch?.slots || []);
+      } catch (error) {
+        setAvailableSlotData([]);
+        setMessage(error.message || "Unable to load availability");
+        setMessageType("error");
+      }
+    };
+    loadAvailability();
+  }, [doctors, selectedDoctor, selectedDate, selectedBranchId]);
 
   const isSlotAvailableForBooking = (selectedDateValue, selectedTimeValue) => {
     const now = new Date();
@@ -207,7 +239,10 @@ const PatientAppointment = () => {
         .match(/(\d{1,2}):(\d{2})/)
         ?.slice(1)
         .map(Number) || [0, 0];
-      const selectedHour = hour % 12 + (selectedTimeValue?.includes("PM") ? 12 : 0);
+      const hasPeriod = /AM|PM/i.test(selectedTimeValue || "");
+      const selectedHour = hasPeriod
+        ? (hour % 12) + (selectedTimeValue?.toUpperCase().includes("PM") ? 12 : 0)
+        : hour;
       const currentHour = now.getHours();
       const currentMinute = now.getMinutes();
       return selectedHour > currentHour || (selectedHour === currentHour && minute > currentMinute);
@@ -227,11 +262,7 @@ const PatientAppointment = () => {
       return;
     }
 
-    const bookedCount = bookings.filter(
-      (booking) => booking.doctor === selectedDoc.id && booking.date === selectedDate && booking.time === time
-    ).length;
-
-    const remaining = Math.max(0, selectedDoc.slotCapacity - bookedCount);
+    const remaining = availableSlotData.find((slot) => slot.label === time)?.remaining ?? 0;
     setAvailableSlots(remaining);
     if (remaining > 0) {
       setMessage(`${remaining} slot${remaining > 1 ? "s" : ""} left for this time`);
@@ -285,6 +316,8 @@ const PatientAppointment = () => {
           time: selectedTime,
           patientName,
           patientId,
+          branchId: selectedBranchId || undefined,
+          paymentMethod,
           reason: "Appointment booking",
         }),
       });
@@ -299,26 +332,14 @@ const PatientAppointment = () => {
 
       const savedAppointment = data.appointment;
 
-      const newBooking = {
-        id: savedAppointment._id,
-        _id: savedAppointment._id,
-        doctorId: selectedDoc.id,
-        doctor: selectedDoc.name,
-        date: selectedDate,
-        time: selectedTime,
-        status: savedAppointment.status || "pending",
-        patientName,
-        patientId,
-        reason: savedAppointment.reason || "Appointment booking",
-        createdAt: savedAppointment.createdAt || new Date().toISOString(),
-        source: "database",
-      };
-
-      setBookings((prev) => [...prev, newBooking]);
       setMessage(`Appointment booked successfully with ${selectedDoc.name}`);
       setMessageType("success");
       setBookingSuccess(true);
       setAvailableSlots((prev) => Math.max(0, prev - 1));
+
+      if (paymentMethod === "online") {
+        await startOnlinePayment(savedAppointment._id);
+      }
     } catch (error) {
       console.error("Appointment booking failed:", error);
       setMessage("Unable to connect to server. Please try again.");
@@ -326,9 +347,44 @@ const PatientAppointment = () => {
     }
   };
 
+  const startOnlinePayment = async (appointmentId) => {
+    const response = await fetch(`${API_URL}/api/patientform/appointments/payment/order`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token")}` },
+      body: JSON.stringify({ appointmentId }),
+    });
+    const orderData = await response.json();
+    if (!response.ok) throw new Error(orderData.msg || "Unable to start online payment");
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.onload = () => {
+      const checkout = new window.Razorpay({
+        key: orderData.key,
+        amount: orderData.order.amount,
+        currency: orderData.order.currency,
+        name: "Docify",
+        description: `Consultation with ${orderData.doctorName || "doctor"}`,
+        order_id: orderData.order.id,
+        handler: async (payment) => {
+          await fetch(`${API_URL}/api/patientform/appointments/payment/verify`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token")}` },
+            body: JSON.stringify({ appointmentId, ...payment }),
+          });
+          setMessage("Online payment completed successfully.");
+          setMessageType("success");
+        },
+        theme: { color: "#0d47a1" },
+      });
+      checkout.open();
+    };
+    script.onerror = () => setMessage("Unable to load online payment. You can pay cash at the clinic.");
+    document.body.appendChild(script);
+  };
+
   const selectedDoctorData = doctors.find((doctor) => doctor.name === selectedDoctor);
   const timeOptions = selectedDoctorData
-    ? createTimeSlots(selectedDoctorData.availabilitySchedule, selectedDoctorData.slotCapacity)
+    ? availableSlotData
     : [];
 
   const formatCustomDate = (dateValue) => {
@@ -436,9 +492,9 @@ const PatientAppointment = () => {
                       <InputLabel>City</InputLabel>
                       <Select name="city" value={filters.city} onChange={handleFilterChange} label="City" sx={{ borderRadius: 2 }}>
                         <MenuItem value="">All Cities</MenuItem>
-                        <MenuItem value="Delhi">Delhi</MenuItem>
-                        <MenuItem value="Mumbai">Mumbai</MenuItem>
-                        <MenuItem value="Bangalore">Bangalore</MenuItem>
+                        {[...new Set(doctors.map((doctor) => doctor.city).filter(Boolean))].sort().map((city) => (
+                          <MenuItem key={city} value={city}>{city}</MenuItem>
+                        ))}
                       </Select>
                     </FormControl>
                   </Grid>
@@ -447,10 +503,9 @@ const PatientAppointment = () => {
                       <InputLabel>Specialization</InputLabel>
                       <Select name="specialization" value={filters.specialization} onChange={handleFilterChange} label="Specialization" sx={{ borderRadius: 2 }}>
                         <MenuItem value="">All Specializations</MenuItem>
-                        <MenuItem value="Cardiologist">Cardiologist</MenuItem>
-                        <MenuItem value="Dentist">Dentist</MenuItem>
-                        <MenuItem value="Orthopedic">Orthopedic</MenuItem>
-                        <MenuItem value="Dermatologist">Dermatologist</MenuItem>
+                        {[...new Set(doctors.map((doctor) => doctor.specialization).filter(Boolean))].sort().map((specialization) => (
+                          <MenuItem key={specialization} value={specialization}>{specialization}</MenuItem>
+                        ))}
                       </Select>
                     </FormControl>
                   </Grid>
@@ -462,7 +517,7 @@ const PatientAppointment = () => {
                       name="name"
                       value={filters.name}
                       onChange={handleFilterChange}
-                      InputProps={{ startAdornment: <Search sx={{ mr: 1, color: "text.secondary", fontSize: 20 }} /> }}
+                      InputProps={{ startAdornment: <Search sx={{ mr: 1, color: "text.secondary", fontSize: 20 }} />, endAdornment: <Button size="small" onClick={handleVoiceSearch} aria-label="Search by voice">{voiceSearching ? <Stop fontSize="small" /> : <Mic fontSize="small" />}</Button> }}
                       sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
                     />
                   </Grid>
@@ -627,6 +682,7 @@ const PatientAppointment = () => {
                 <TextField
                   fullWidth
                   type="date"
+                  inputProps={{ min: getTodayInputValue() }}
                   InputLabelProps={{ shrink: true }}
                   value={selectedDate}
                   onChange={handleDateChange}
@@ -634,18 +690,30 @@ const PatientAppointment = () => {
                   sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3, bgcolor: "white" } }}
                 />
 
+                {selectedDoctorData?.branches?.length > 0 && (
+                  <FormControl fullWidth sx={{ mt: 2 }}>
+                    <InputLabel>Clinic branch</InputLabel>
+                    <Select value={selectedBranchId} label="Clinic branch" onChange={(event) => { setSelectedBranchId(event.target.value); setSelectedTime(""); setAvailableSlots(0); }}>
+                      {selectedDoctorData.branches.filter((branch) => branch.active !== false).map((branch) => (
+                        <MenuItem key={branch._id} value={branch._id}>{branch.name} - {branch.city}</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                )}
+
                 {selectedDoctorData && selectedDate && (
                   <Grow in>
                     <Box sx={{ mt: 4, mb: 2 }}>
                       <Typography variant="subtitle1" fontWeight={800} sx={{ mb: 2, color: "text.primary" }}>
                         2. Select Time Slot
                       </Typography>
-                      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "repeat(2, 1fr)", sm: "repeat(3, 1fr)" }, gap: 2 }}>
+                      {dateClosed ? (
+                        <Alert severity="warning">No booking on this date: {dateClosedReason}</Alert>
+                      ) : availableSlotData.length === 0 ? (
+                        <Alert severity="info">No time slots are configured for this date.</Alert>
+                      ) : <Box sx={{ display: "grid", gridTemplateColumns: { xs: "repeat(2, 1fr)", sm: "repeat(3, 1fr)" }, gap: 2 }}>
                         {timeOptions.map((slot) => {
-                          const bookedCount = bookings.filter(
-                            (booking) => booking.doctor === selectedDoctorData.name && booking.date === selectedDate && booking.time === slot.label
-                          ).length;
-                          const remaining = Math.max(0, slot.capacity - bookedCount);
+                          const remaining = Number(slot.remaining || 0);
                           const isSelectedTime = selectedTime === slot.label;
                           const disabled = remaining === 0 || isSlotDisabled(slot);
 
@@ -685,7 +753,7 @@ const PatientAppointment = () => {
                             </Button>
                           );
                         })}
-                      </Box>
+                      </Box>}
                     </Box>
                   </Grow>
                 )}
@@ -720,6 +788,18 @@ const PatientAppointment = () => {
                           <Grid item xs={3}><Typography variant="body2" color="text.secondary" fontWeight={600}>Time</Typography></Grid>
                           <Grid item xs={8}><Typography variant="body1" fontWeight={700}>{selectedTime || "—"}</Typography></Grid>
                         </Grid>
+                        <Grid container alignItems="center">
+                          <Grid item xs={1}><LocationOn color="primary" /></Grid>
+                          <Grid item xs={3}><Typography variant="body2" color="text.secondary" fontWeight={600}>Branch</Typography></Grid>
+                          <Grid item xs={8}><Typography variant="body1" fontWeight={700}>{selectedDoctorData?.branches?.find((branch) => String(branch._id) === String(selectedBranchId))?.name || "Main clinic"}</Typography></Grid>
+                        </Grid>
+                        <FormControl fullWidth>
+                          <InputLabel>Payment method</InputLabel>
+                          <Select value={paymentMethod} label="Payment method" onChange={(event) => setPaymentMethod(event.target.value)}>
+                            <MenuItem value="cash">Cash at clinic {selectedDoctorData?.consultationFee ? `(₹${selectedDoctorData.consultationFee})` : ""}</MenuItem>
+                            <MenuItem value="online">Pay online {selectedDoctorData?.consultationFee ? `(₹${selectedDoctorData.consultationFee})` : ""}</MenuItem>
+                          </Select>
+                        </FormControl>
                       </Stack>
 
                       <Button

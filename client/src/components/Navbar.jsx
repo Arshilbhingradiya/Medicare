@@ -49,6 +49,7 @@ const Navbar = ({
 const { isLoggedIn, user, authorizationtoken } = useAuth();
   const navigate = useNavigate();
   const [profileImage, setProfileImage] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [mobileMenuAnchor, setMobileMenuAnchor] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [notificationMenuAnchor, setNotificationMenuAnchor] = useState(null);
@@ -70,8 +71,26 @@ const { isLoggedIn, user, authorizationtoken } = useAuth();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
 
   useEffect(() => {
+    const loadDisplayName = async () => {
+      const fallbackName = user?.username || user?.name || "User";
+      setDisplayName(fallbackName);
+      if ((user?.role || "").toLowerCase() !== "patient" || !authorizationtoken) return;
+      try {
+        const response = await fetch(`${API_URL}/api/patientform/patientprofile`, {
+          headers: { Authorization: authorizationtoken },
+        });
+        if (response.ok) {
+          const profile = await response.json();
+          setDisplayName(profile.name || fallbackName);
+        }
+      } catch {
+        setDisplayName(fallbackName);
+      }
+    };
+
     const loadProfileImage = () => {
-      if (!user?.id) {
+      const userId = user?._id || user?.id;
+      if (!userId) {
         setProfileImage("");
         return;
       }
@@ -91,7 +110,7 @@ const { isLoggedIn, user, authorizationtoken } = useAuth();
       } else if (role === "patient") {
         try {
           const storedPatient = JSON.parse(
-            localStorage.getItem(`patientProfile_${user.id}`) || "{}"
+            localStorage.getItem(`patientProfile_${userId}`) || "{}"
           );
           avatar = storedPatient.avatar || "";
         } catch {
@@ -110,7 +129,7 @@ const { isLoggedIn, user, authorizationtoken } = useAuth();
         if (!avatar) {
           try {
             const storedPatient = JSON.parse(
-              localStorage.getItem(`patientProfile_${user.id}`) || "{}"
+              localStorage.getItem(`patientProfile_${userId}`) || "{}"
             );
             avatar = storedPatient.avatar || "";
           } catch (error) {
@@ -161,6 +180,7 @@ const updateNotifications = async () => {
       setNotifications([]);
     };
 
+    loadDisplayName();
     loadProfileImage();
     updateNotifications();
     window.addEventListener("profile-updated", loadProfileImage);
@@ -170,7 +190,7 @@ const updateNotifications = async () => {
       window.removeEventListener("profile-updated", loadProfileImage);
       window.removeEventListener("appointments-updated", updateNotifications);
     };
-  }, [user?.id, user?.role, authorizationtoken]);
+  }, [user?._id, user?.id, user?.role, user?.username, user?.name, authorizationtoken]);
 
   const handleProfileMenuOpen = () => {
     onToggleSidebar();
@@ -180,7 +200,7 @@ const updateNotifications = async () => {
     onCloseSidebar();
   };
 
-const normalizedRole = user?.role?.toLowerCase();
+const normalizedRole = user?.isAdmin ? "admin" : user?.role?.toLowerCase();
   const isAdmin = user?.isAdmin || normalizedRole === "admin";
 
   const handleNavigate = (path) => {
@@ -244,7 +264,7 @@ const handleAppointmentCTA = () => {
       navigate("/login");
     }
   };
-  const handlemedicare = () => {
+  const handleDocify = () => {
     navigate("/");
   };
 
@@ -319,7 +339,7 @@ const handleAppointmentCTA = () => {
           <Typography
             type="button"
             variant="h6"
-            onClick={handlemedicare}
+            onClick={handleDocify}
             sx={{
               color: "#FFF",
               fontWeight: 700,
@@ -328,7 +348,7 @@ const handleAppointmentCTA = () => {
               mr: 1,
             }}
           >
-            MediCare
+            Docify
           </Typography>
 
           {!isMobile && (
@@ -363,12 +383,6 @@ const handleAppointmentCTA = () => {
                 </Button>
               </Box>
 
-              <Typography
-                variant="body2"
-                sx={{ mx: 1, color: "#FFEB3B", display: { xs: "none", lg: "block" } }}
-              >
-                Emergency: +1 800 123 4567
-              </Typography>
             </>
           )}
 
@@ -524,7 +538,7 @@ const handleAppointmentCTA = () => {
                         </Avatar>
                         <Box>
                           <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                            {user?.username || "User"}
+                            {displayName || user?.username || "User"}
                           </Typography>
                           <Typography
                             variant="body2"

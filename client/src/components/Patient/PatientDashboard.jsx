@@ -120,6 +120,18 @@ const PatientDashboard = () => {
   };
 
   fetchAppointments();
+  const refreshOnFocus = () => {
+    if (document.visibilityState === "visible") fetchAppointments();
+  };
+  const interval = window.setInterval(fetchAppointments, 15000);
+  document.addEventListener("visibilitychange", refreshOnFocus);
+  window.addEventListener("appointments-updated", fetchAppointments);
+
+  return () => {
+    window.clearInterval(interval);
+    document.removeEventListener("visibilitychange", refreshOnFocus);
+    window.removeEventListener("appointments-updated", fetchAppointments);
+  };
 }, []);
   const handleReschedule = (appointment) => {
     if (!isAppointmentUpcoming(appointment)) {

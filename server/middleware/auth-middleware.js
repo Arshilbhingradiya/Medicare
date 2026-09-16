@@ -1,5 +1,4 @@
 const jwt= require("jsonwebtoken");
-const { login } = require("../controllers/auth-controller");
 const User = require("../models/user-model");
 
 const authMiddleware = async (req,res,next)=>{
@@ -8,23 +7,30 @@ const authMiddleware = async (req,res,next)=>{
      const token = req.header("Authorization");
 
      if(!token){
-        return res.status(400).send({message:"token not provided"});
+        return res.status(401).send({message:"Authentication required. Please log in."});
      }
-     console.log("token form auth middleware", token);
      const jwtToken = token.replace("Bearer" , "").trim();
 
      try {
         const isverify = jwt.verify(jwtToken,process.env.JWT_SECRET);
      
-        const userData= await User.findOne({email:isverify.email}).select({password:0,});
-        console.log(userData);
+            const userData = await User.findOne({
+               $or: [
+                  ...(isverify.userId ? [{ _id: isverify.userId }] : []),
+                  ...(isverify.email ? [{ email: isverify.email }] : []),
+               ],
+            }).select({password:0});
+
+            if (!userData) {
+               return res.status(401).json({ msg: "User account not found. Please log in again." });
+            }
         
         req.user = userData;
         req.token = token;
         req.userID = userData._id;
         next();
      } catch (error) {
-        return res.status(401).json({msg:"invalid token unauthiorized"});
+      return res.status(401).json({msg:"Session expired. Please log in again."});
      }
      
    

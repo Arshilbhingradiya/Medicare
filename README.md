@@ -1,3 +1,49 @@
+## AI Assistant
+
+The application includes an authenticated Docify Assistant chat widget. Configure the server before using it:
+
+```env
+OPENAI_API_KEY=your_server_side_api_key
+OPENAI_MODEL=gpt-4o-mini
+# Optional OpenAI-compatible endpoint
+OPENAI_API_URL=https://api.openai.com/v1/chat/completions
+```
+
+Keep `OPENAI_API_KEY` in `server/.env`; never place it in `client/.env` or frontend code. Restart the server after changing environment variables. Without the key, the chat UI will show a configuration message instead of failing silently.
+
+### Automation Features
+
+- Appointment reminders are created for upcoming appointments and duplicate reminders are prevented.
+- Booking rejects overlapping patient appointments and full doctor slots.
+- Doctor recommendations support city, specialization, name, and qualification matching.
+- Doctors can generate a safe AI summary of a patient appointment record.
+- Patient records can be downloaded as CSV with patient name, date, time, and status.
+- Doctor dashboard summary APIs expose today's count, pending, confirmed, and completed appointments.
+- Patient booking supports browser voice search where the browser provides Web Speech API support.
+- Each doctor can configure multiple branches with separate city, address, schedule, and hourly capacity.
+- Availability is read from MongoDB; cancelled appointments release their slot automatically.
+- Same-day slots earlier than the current time are rejected by both frontend and backend.
+- Patients can select cash at clinic or online payment. Online payment uses the existing Razorpay account and stores payment status on the appointment.
+
+The reminder worker runs every 15 minutes inside the backend process. For production deployments, use a persistent worker or scheduled process so reminders continue across server restarts.
+
+### Doctor Verification Workflow
+
+1. A doctor registers and is redirected to `/verifydoctor`.
+2. The doctor submits degree, medical license, specialization, identity details, and document images/PDFs.
+3. The application is stored in MongoDB with `status: "pending"`.
+4. Admin reviews the submitted details and documents from Doctor Verification.
+5. Admin approves or rejects the application. Rejections include a reason and notify the doctor.
+6. Only `approved` doctors with an active subscription or trial appear in patient discovery.
+
+Documents are currently stored as small data URLs in MongoDB and limited to 2 MB per file by the UI. For a larger production deployment, move document storage to object storage such as S3 or Cloudinary and store only signed URLs in MongoDB.
+
+For online appointment payments, configure real Razorpay values in `server/.env`:
+
+```env
+RAZORPAY_KEY_ID=your_key_id
+RAZORPAY_KEY_SECRET=your_key_secret
+```
 # Docify — Doctor Appointment Management Platform
 
 <p align="center">

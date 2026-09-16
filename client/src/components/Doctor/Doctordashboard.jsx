@@ -112,7 +112,7 @@ const Doctordashboard = () => {
 
   const doctorName = user?.username || user?.name || "Dr. Current User";
 
-  // Fetch ALL doctor appointments from MongoDB
+  // Fetch the authenticated doctor's appointments for the selected date.
   useEffect(() => {
     const fetchAppointments = async () => {
       try {
@@ -125,7 +125,7 @@ const Doctordashboard = () => {
           return;
         }
 
-        const response = await fetch(`${API_URL}/api/patientform/appointments/doctor`, {
+        const response = await fetch(`${API_URL}/api/patientform/appointments/doctor?date=${selectedDate}`, {
           method: "GET",
           headers: {
             Authorization: authorizationtoken,
@@ -161,7 +161,7 @@ const Doctordashboard = () => {
     };
 
     fetchAppointments();
-  }, [authorizationtoken]);
+  }, [authorizationtoken, selectedDate]);
 
   // Fetch subscription status
   useEffect(() => {
