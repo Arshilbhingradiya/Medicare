@@ -20,22 +20,28 @@ const assistantrouter = require("./router/assistant-router");
 const googleAuthRoutes = require("./router/google-auth.js");
 const razorpayController = require("./controllers/razorpay-controller");
 const { sendAppointmentReminders } = require("./services/appointment-automation");
-app.use(session({ secret: "secret", resave: false, saveUninitialized: true }));
-
-app.use(passport.initialize());
-app.use(passport.session());
 const connectdb = require("./db");
 
-// cors
-
+// cors (single source of truth - was previously configured twice with
+// conflicting settings, which caused inconsistent CORS/session behaviour)
 const corsoption = {
   origin: process.env.CLIENT_URL,
-  method: "GET,POST,DELETE,PUT,PATCH",
+  methods: "GET,POST,DELETE,PUT,PATCH",
   credentials: true,
 };
-
-// middleware all thingd a in all crud operation
 app.use(cors(corsoption));
+
+// session (single source of truth - previously initialized twice with two
+// different hardcoded secrets, the second call silently overriding the first)
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || "dev-only-insecure-secret",
+    resave: false,
+    saveUninitialized: true,
+  })
+);
+app.use(passport.initialize());
+app.use(passport.session());
 
 // Razorpay webhook needs raw body - register before express.json()
 app.post(
@@ -71,26 +77,6 @@ app.use("/api/doctorform", doctorrouter);
 app.use("/api/notifications", notificationrouter);
 app.use("/api/assistant", assistantrouter);
 
-app.use(
-  cors({
-    origin: process.env.CLIENT_URL, // Your frontend URL
-    credentials: true,
-  })
-);
-
-// Session Setup
-app.use(
-  session({
-    secret: "your_secret_key",
-    resave: false,
-    saveUninitialized: true,
-  })
-);
-
-// Initialize Passport
-app.use(passport.initialize());
-app.use(passport.session());
-
 // Passport Google OAuth strategy
 passport.use(
   new GoogleStrategy(
@@ -123,13 +109,16 @@ connectdb();
 
 // Periodic renewal reminder job (every 6 hours)
 setInterval(() => {
-  razorpayController.sendRenewalReminders();
+  Promise.resolve()
+    .then(() => razorpayController.sendRenewalReminders())
+    .catch((error) => console.error("Renewal reminder job error:", error));
 }, 6 * 60 * 60 * 1000);
 
 setInterval(() => {
   sendAppointmentReminders().catch((error) => console.error("Appointment reminder job error:", error));
 }, 15 * 60 * 1000);
 
-app.listen(3000, () => {
-  console.log(`server is running on 3000`);
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`server is running on ${PORT}`);
 });

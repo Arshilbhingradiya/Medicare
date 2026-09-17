@@ -3,6 +3,7 @@ const Appointment = require("../models/appointment-model");
 const Doctor = require("../models/Doctor-model");
 const { createNotification } = require("./notification-controller");
 const { isDoctorBookable } = require("../utils/doctor-eligibility");
+const { reserveSlot, releaseSlot } = require("../utils/slot-lock");
 
 const parseDate = (value) => {
   const date = new Date(`${value}T00:00:00.000Z`);
@@ -130,47 +131,64 @@ const bookAppointment = async (req, res) => {
       return res.status(409).json({ msg: "Selected time is outside the doctor's availability" });
     }
 
-    const capacityFilter = {
+    const usesBranch = Array.isArray(doctor.branches) && doctor.branches.length;
+    const branchKey = usesBranch ? branch._id : null;
+    const capacity = Number(branch.slotCapacity || doctor.slotCapacity || 0);
+
+    // Atomically claim a seat in this slot. This replaces a previous
+    // "countDocuments() then create()" check, which was a race condition:
+    // two patients booking the last open seat at the same instant could
+    // both pass the count check before either appointment was written,
+    // resulting in overbooking. reserveSlot() uses a DB-level unique index
+    // so only one concurrent request can win the last seat.
+    const slotClaimed = await reserveSlot({
       doctor: doctor._id,
-      date: { $gte: dayRange.start, $lt: dayRange.end },
+      branchId: branchKey,
+      dateKey: date,
       time,
-      status: { $ne: "cancelled" },
-    };
-    if (Array.isArray(doctor.branches) && doctor.branches.length) capacityFilter.branchId = branch._id;
-    const bookedCount = await Appointment.countDocuments(capacityFilter);
-    if (bookedCount >= Number(branch.slotCapacity || doctor.slotCapacity || 0)) {
+      capacity,
+    });
+    if (!slotClaimed) {
       return res.status(409).json({ msg: "No appointment slots are available at this time" });
     }
 
-    const patientConflict = await Appointment.exists({
-      patientUser: patientUserRef,
-      date: { $gte: dayRange.start, $lt: dayRange.end },
-      time,
-      status: { $ne: "cancelled" },
-    });
-    if (patientConflict) {
-      return res.status(409).json({ msg: "You already have an appointment at this date and time" });
+    try {
+      const patientConflict = await Appointment.exists({
+        patientUser: patientUserRef,
+        date: { $gte: dayRange.start, $lt: dayRange.end },
+        time,
+        status: { $ne: "cancelled" },
+      });
+      if (patientConflict) {
+        await releaseSlot({ doctor: doctor._id, branchId: branchKey, dateKey: date, time });
+        return res.status(409).json({ msg: "You already have an appointment at this date and time" });
+      }
+
+      var patientProfile = await Patient.findOne({ userId }).lean();
+      var patientName = patientProfile?.name || req.user.username || "Patient";
+
+      var appointment = await Appointment.create({
+        patient: patientUserRef,
+        patientUser: patientUserRef,
+        doctor: doctor._id,
+        doctorName: doctor.name,
+        branchId: usesBranch ? branch._id : undefined,
+        branchName: branch.name,
+        branchCity: branch.city,
+        patientName,
+        date: dayRange.start,
+        time,
+        status: "pending",
+        reason: reason || "Appointment booking",
+        paymentMethod,
+        paymentStatus: paymentMethod === "online" ? "pending" : "unpaid",
+      });
+    } catch (bookingError) {
+      // Give the seat back if anything after the reservation failed,
+      // otherwise the slot would stay artificially full forever.
+      await releaseSlot({ doctor: doctor._id, branchId: branchKey, dateKey: date, time });
+      throw bookingError;
     }
-
-    const patientProfile = await Patient.findOne({ userId }).lean();
-    const patientName = patientProfile?.name || req.user.username || "Patient";
-
-    const appointment = await Appointment.create({
-      patient: patientUserRef,
-      patientUser: patientUserRef,
-      doctor: doctor._id,
-      doctorName: doctor.name,
-      branchId: Array.isArray(doctor.branches) && doctor.branches.length ? branch._id : undefined,
-      branchName: branch.name,
-      branchCity: branch.city,
-      patientName,
-      date: dayRange.start,
-      time,
-      status: "pending",
-      reason: reason || "Appointment booking",
-      paymentMethod,
-      paymentStatus: paymentMethod === "online" ? "pending" : "unpaid",
-    });
 
     // Notify the patient that their booking was received
     await createNotification({
@@ -284,9 +302,19 @@ const updateAppointmentStatus = async (req, res) => {
       return res.status(403).json({ msg: "You are not authorized to update this appointment" });
     }
 
+    const previous = await Appointment.findById(id).select("status branchId date time doctor");
     const appointment = await Appointment.findByIdAndUpdate(id, { status }, { new: true });
     if (!appointment) {
       return res.status(404).json({ msg: "Appointment not found" });
+    }
+
+    if (status === "cancelled" && previous && previous.status !== "cancelled") {
+      await releaseSlot({
+        doctor: appointment.doctor,
+        branchId: appointment.branchId || null,
+        dateKey: appointment.date.toISOString().slice(0, 10),
+        time: appointment.time,
+      });
     }
 
     const patientProfile = appointment.patientUser
@@ -485,24 +513,46 @@ const rescheduleAppointment = async (req, res) => {
     if (!isTimeInSchedule(branch.availabilitySchedule, time)) {
       return res.status(409).json({ msg: "Selected time is outside the doctor's availability" });
     }
-    const capacityFilter = {
-      _id: { $ne: appointment._id },
-      doctor: doctor._id,
-      date: { $gte: dayRange.start, $lt: dayRange.end },
-      time,
-      status: { $ne: "cancelled" },
-    };
-    if (appointment.branchId) capacityFilter.branchId = appointment.branchId;
-    const bookedCount = await Appointment.countDocuments(capacityFilter);
-    if (bookedCount >= Number(branch.slotCapacity || doctor.slotCapacity || 0)) {
-      return res.status(409).json({ msg: "No appointment slots are available at this time" });
+    const oldBranchKey = appointment.branchId || null;
+    const oldDateKey = appointment.date.toISOString().slice(0, 10);
+    const oldTime = appointment.time;
+    const newBranchKey = appointment.branchId ? branch._id : null;
+    const capacity = Number(branch.slotCapacity || doctor.slotCapacity || 0);
+
+    const sameSlot =
+      String(oldBranchKey) === String(newBranchKey) &&
+      oldDateKey === date &&
+      oldTime === time;
+
+    if (!sameSlot) {
+      const slotClaimed = await reserveSlot({
+        doctor: doctor._id,
+        branchId: newBranchKey,
+        dateKey: date,
+        time,
+        capacity,
+      });
+      if (!slotClaimed) {
+        return res.status(409).json({ msg: "No appointment slots are available at this time" });
+      }
     }
 
-    appointment.date = dayRange.start;
-    appointment.time = time;
-    appointment.doctorName = doctor.name;
-    appointment.status = "pending";
-    await appointment.save();
+    try {
+      appointment.date = dayRange.start;
+      appointment.time = time;
+      appointment.doctorName = doctor.name;
+      appointment.status = "pending";
+      await appointment.save();
+    } catch (saveError) {
+      if (!sameSlot) {
+        await releaseSlot({ doctor: doctor._id, branchId: newBranchKey, dateKey: date, time });
+      }
+      throw saveError;
+    }
+
+    if (!sameSlot) {
+      await releaseSlot({ doctor: doctor._id, branchId: oldBranchKey, dateKey: oldDateKey, time: oldTime });
+    }
 
     // Let the doctor know the patient moved their slot
     if (doctor && doctor.userId) {

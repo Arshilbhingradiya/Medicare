@@ -11,7 +11,7 @@ const checkSubscription = async (req, res, next) => {
         const doctor = await Doctor.findOne({ userId: doctorId });
 
         // If subscription is active or not explicitly enforced, continue
-        if (doctor && (doctor.isSubscribed || doctor.subscriptionStatus === 'active')) {
+        if (doctor && (doctor.isSubscribed || doctor.subscriptionStatus === 'Active')) {
             return next();
         }
 

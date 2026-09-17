@@ -438,77 +438,12 @@ const getPlans = async (req, res) => {
   }
 };
 
-// Enroll doctor in a subscription plan (simulated payment)
-const enrollSubscription = async (req, res) => {
-  try {
-    const { plan, paymentMethod = "Card" } = req.body;
-    const userId = req.userID || req.body.userId;
-
-    if (!userId) {
-      return res.status(400).json({ msg: "User not authenticated. Please login." });
-    }
-
-    const doctor = await Doctor.findOne({ userId });
-    if (!doctor) {
-      return res.status(404).json({
-        msg: "Doctor profile not found. Please complete your profile first.",
-      });
-    }
-
-    // Safeguard: Prevent double billing for the same active plan
-    if (doctor.subscriptionStatus === "Active" && doctor.subscriptionPlan === plan) {
-      return res.status(400).json({ msg: "You are already actively subscribed to this plan." });
-    }
-
-    const planData = await SubscriptionPlan.findOne({ name: plan }).lean();
-    if (!planData) {
-      return res.status(400).json({ msg: "Invalid subscription plan" });
-    }
-
-    const paymentReference = `PAY-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-    const startDate = new Date();
-    const expiryDate = new Date(startDate);
-    expiryDate.setDate(expiryDate.getDate() + planData.durationDays);
-
-    let subscription = await DoctorSubscription.findOne({ userId });
-    if (subscription) {
-      subscription.plan = planData.name;
-      subscription.price = planData.price;
-      subscription.status = "Active";
-      subscription.paymentMethod = paymentMethod;
-      subscription.paymentReference = paymentReference;
-      subscription.startDate = startDate;
-      subscription.expiryDate = expiryDate;
-      await subscription.save();
-    } else {
-      subscription = await DoctorSubscription.create({
-        userId,
-        doctorId: doctor._id,
-        plan: planData.name,
-        price: planData.price,
-        status: "Active",
-        paymentMethod,
-        paymentReference,
-        startDate,
-        expiryDate,
-      });
-    }
-
-    doctor.subscriptionPlan = planData.name;
-    doctor.subscriptionStatus = "Active";
-    doctor.subscriptionExpiry = expiryDate;
-    await doctor.save();
-
-    return res.status(200).json({
-      msg: "Subscription activated successfully",
-      subscription,
-      doctor,
-    });
-  } catch (error) {
-    console.log(error);
-    return res.status(500).json({ msg: "Internal server error", error: error.message });
-  }
-};
+// NOTE: the old enrollSubscription() controller was removed here.
+// It activated doctor.subscriptionStatus = "Active" directly from client
+// input with no Razorpay signature verification, so any authenticated
+// doctor could call it to get a paid plan for free. Real subscription
+// activation now only happens through razorpayController.verifyPayment
+// (and the webhook), both of which verify a genuine Razorpay signature.
 
 // Get current doctor's subscription
 const getMySubscription = async (req, res) => {
@@ -543,6 +478,5 @@ module.exports = {
   getDoctorProfile,
   updateDoctorProfile,
   getPlans,
-  enrollSubscription,
   getMySubscription,
 };

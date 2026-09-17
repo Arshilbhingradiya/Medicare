@@ -39,7 +39,12 @@ const verifyAppointmentPayment = async (req, res) => {
     const appointment = await Appointment.findOne({ _id: appointmentId, patientUser: req.userID });
     if (!appointment) return res.status(404).json({ msg: "Appointment not found" });
     const expected = crypto.createHmac("sha256", process.env.RAZORPAY_KEY_SECRET).update(`${razorpay_order_id}|${razorpay_payment_id}`).digest("hex");
-    if (expected !== razorpay_signature || appointment.paymentReference !== razorpay_order_id) return res.status(400).json({ msg: "Invalid payment verification" });
+    const expectedBuf = Buffer.from(expected);
+    const receivedBuf = Buffer.from(String(razorpay_signature || ""));
+    const signatureValid =
+      expectedBuf.length === receivedBuf.length &&
+      crypto.timingSafeEqual(expectedBuf, receivedBuf);
+    if (!signatureValid || appointment.paymentReference !== razorpay_order_id) return res.status(400).json({ msg: "Invalid payment verification" });
     appointment.paymentStatus = "paid";
     appointment.paymentReference = razorpay_payment_id;
     await appointment.save();

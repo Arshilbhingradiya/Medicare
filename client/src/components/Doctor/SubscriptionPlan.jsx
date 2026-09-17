@@ -190,39 +190,83 @@ const SubscriptionPlan = () => {
     }
   };
 
-  // Payment Processing
+  // Payment Processing - goes through real Razorpay checkout.
+  // Subscriptions are only ever activated server-side after Razorpay's
+  // signature is verified (see razorpay-controller.js verifyPayment /
+  // razorpayWebhook) - the old direct "/subscription/enroll" call that
+  // activated a plan with no payment verification has been removed.
   const handleProcessPayment = async () => {
     if (!selectedPlan) return;
     setProcessing(true);
     setMessage("");
 
     try {
-      const response = await fetch(`${API_URL}/api/doctorform/subscription/enroll`, {
+      const orderResponse = await fetch(`${API_URL}/api/doctorform/subscription/create-order`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: authorizationtoken,
         },
-        body: JSON.stringify({
-          plan: selectedPlan.name,
-          paymentMethod: paymentMethod
-        }),
+        body: JSON.stringify({ plan: selectedPlan.name }),
+      });
+      const orderData = await orderResponse.json();
+      if (!orderResponse.ok) {
+        throw new Error(orderData.msg || "Unable to start payment");
+      }
+
+      await new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = "https://checkout.razorpay.com/v1/checkout.js";
+        script.onload = () => {
+          const checkout = new window.Razorpay({
+            key: orderData.key,
+            amount: orderData.order.amount,
+            currency: orderData.order.currency,
+            name: "Docify",
+            description: `${selectedPlan.name} subscription`,
+            order_id: orderData.order.id,
+            handler: async (payment) => {
+              try {
+                const verifyResponse = await fetch(
+                  `${API_URL}/api/doctorform/subscription/verify`,
+                  {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      Authorization: authorizationtoken,
+                    },
+                    body: JSON.stringify(payment),
+                  }
+                );
+                const verifyData = await verifyResponse.json();
+                if (!verifyResponse.ok) {
+                  reject(new Error(verifyData.msg || "Payment verification failed"));
+                  return;
+                }
+                setPaymentReference(verifyData.subscription.paymentReference);
+                setCurrentSubscription(verifyData.subscription);
+                setSubscriptionStatus(verifyData.subscription.status);
+                setPaymentDone(true);
+                setActiveStep(2);
+                fetchMySubscription();
+                resolve();
+              } catch (verifyError) {
+                reject(verifyError);
+              }
+            },
+            modal: {
+              ondismiss: () => reject(new Error("Payment cancelled")),
+            },
+            theme: { color: "#0d47a1" },
+          });
+          checkout.open();
+        };
+        script.onerror = () => reject(new Error("Unable to load payment gateway"));
+        document.body.appendChild(script);
       });
 
-      const data = await response.json();
-
-      if (response.ok) {
-        setPaymentReference(data.subscription.paymentReference);
-        setCurrentSubscription(data.subscription);
-        setSubscriptionStatus(data.subscription.status);
-        setMessageType("success");
-        setMessage("Subscription activated successfully!");
-        setPaymentDone(true);
-        setActiveStep(2);
-        fetchMySubscription();
-      } else {
-        throw new Error(data.msg || "Payment failed on server");
-      }
+      setMessageType("success");
+      setMessage("Subscription activated successfully!");
     } catch (error) {
       console.error("Payment error:", error);
       setMessageType("error");

@@ -396,7 +396,13 @@ const verifyPayment = async (req, res) => {
       )
       .digest("hex");
 
-    if (generatedSignature !== razorpay_signature) {
+    const generatedBuf = Buffer.from(generatedSignature);
+    const receivedBuf = Buffer.from(String(razorpay_signature));
+    const signatureValid =
+      generatedBuf.length === receivedBuf.length &&
+      crypto.timingSafeEqual(generatedBuf, receivedBuf);
+
+    if (!signatureValid) {
       return res.status(400).json({
         success: false,
         msg: "Invalid payment signature",
@@ -555,6 +561,144 @@ const verifyPayment = async (req, res) => {
 
 
 // ======================================================
+// RAZORPAY WEBHOOK
+// POST /api/doctorform/subscription/webhook
+// Registered in server.js with express.raw() BEFORE express.json(),
+// so req.rawBody holds the exact bytes Razorpay signed.
+// ======================================================
+
+const activateSubscriptionFromOrder = async (orderId, paymentId) => {
+  const subscription = await DoctorSubscription.findOne({ razorpayOrderId: orderId });
+  if (!subscription || subscription.status === "Active") return;
+
+  const planData = await SubscriptionPlan.findOne({ name: subscription.plan, active: true });
+  if (!planData) return;
+
+  const doctor = await Doctor.findById(subscription.doctorId);
+  if (!doctor) return;
+
+  const now = new Date();
+  let startDate = now;
+  if (
+    doctor.subscriptionStatus === "Active" &&
+    (doctor.expiryDate || doctor.subscriptionExpiry) &&
+    new Date(doctor.expiryDate || doctor.subscriptionExpiry) > now
+  ) {
+    startDate = new Date(doctor.subscriptionExpiry);
+  }
+  const expiryDate = new Date(startDate);
+  expiryDate.setDate(expiryDate.getDate() + planData.durationDays);
+
+  subscription.status = "Active";
+  subscription.startDate = startDate;
+  subscription.expiryDate = expiryDate;
+  subscription.paymentReference = paymentId;
+  subscription.razorpayPaymentId = paymentId;
+  await subscription.save();
+
+  doctor.isSubscribed = true;
+  doctor.planName = planData.name;
+  doctor.subscriptionPlan = planData.name;
+  doctor.subscriptionStatus = "Active";
+  doctor.expiryDate = expiryDate;
+  doctor.subscriptionExpiry = expiryDate;
+  doctor.paymentReference = paymentId;
+  doctor.trialStartDate = undefined;
+  doctor.trialEndsAt = undefined;
+  await doctor.save();
+};
+
+const razorpayWebhook = async (req, res) => {
+  try {
+    const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
+    const signature = req.headers["x-razorpay-signature"];
+
+    if (!secret) {
+      console.error("RAZORPAY_WEBHOOK_SECRET is not configured");
+      return res.status(500).json({ success: false, msg: "Webhook not configured" });
+    }
+    if (!signature || !req.rawBody) {
+      return res.status(400).json({ success: false, msg: "Missing webhook signature" });
+    }
+
+    const expectedSignature = crypto
+      .createHmac("sha256", secret)
+      .update(req.rawBody)
+      .digest("hex");
+
+    const expectedBuf = Buffer.from(expectedSignature);
+    const receivedBuf = Buffer.from(String(signature));
+    const isValid =
+      expectedBuf.length === receivedBuf.length &&
+      crypto.timingSafeEqual(expectedBuf, receivedBuf);
+
+    if (!isValid) {
+      return res.status(400).json({ success: false, msg: "Invalid webhook signature" });
+    }
+
+    const event = req.body?.event;
+    const payment = req.body?.payload?.payment?.entity;
+
+    if (event === "payment.captured" && payment?.order_id) {
+      await activateSubscriptionFromOrder(payment.order_id, payment.id);
+    }
+
+    // Always acknowledge receipt so Razorpay doesn't keep retrying
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error("Razorpay webhook error:", error);
+    // Still ack with 200 to avoid endless retries for a permanently-broken payload;
+    // the error is logged for investigation.
+    return res.status(200).json({ success: false });
+  }
+};
+
+// ======================================================
+// SEND RENEWAL REMINDERS
+// Called on a 6-hour interval from server.js
+// ======================================================
+
+const sendRenewalReminders = async () => {
+  try {
+    const { createNotification } = require("./notification-controller");
+    const now = new Date();
+    const reminderWindowEnd = new Date(now);
+    reminderWindowEnd.setDate(reminderWindowEnd.getDate() + 3);
+
+    const dueSoon = await DoctorSubscription.find({
+      status: "Active",
+      renewalReminderSent: { $ne: true },
+      expiryDate: { $gte: now, $lte: reminderWindowEnd },
+    }).lean();
+
+    for (const subscription of dueSoon) {
+      const doctor = await Doctor.findById(subscription.doctorId).lean();
+      if (!doctor) continue;
+
+      await createNotification({
+        userId: subscription.userId,
+        role: "Doctor",
+        type: "subscription_renewal",
+        title: "Subscription Renewal Reminder",
+        message: `Your ${subscription.plan} plan expires on ${new Date(
+          subscription.expiryDate
+        ).toLocaleDateString()}. Renew soon to keep receiving bookings.`,
+        meta: { subscriptionId: subscription._id, expiryDate: subscription.expiryDate },
+      });
+
+      await DoctorSubscription.updateOne(
+        { _id: subscription._id },
+        { renewalReminderSent: true, renewalReminderDate: now }
+      );
+    }
+  } catch (error) {
+    // Never let this throw - it runs inside an unguarded setInterval in server.js,
+    // and an uncaught error there would crash the whole process.
+    console.error("sendRenewalReminders error:", error);
+  }
+};
+
+// ======================================================
 // EXPORTS
 // ======================================================
 
@@ -563,4 +707,6 @@ module.exports = {
   activateTrial,
   createOrder,
   verifyPayment,
+  razorpayWebhook,
+  sendRenewalReminders,
 };
