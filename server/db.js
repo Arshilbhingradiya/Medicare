@@ -1,18 +1,18 @@
 const mongoose = require("mongoose");
 
-// const URI="mongodb://127.0.0.1:27017/";
+const URI = process.env.MONGODB_URI || process.env.MONGO_CONN;
 
-// mongoose.connect(URI);
-const URI = process.env.MONGO_CONN;
 const connectdb = async () => {
   try {
-    await mongoose.connect(URI);
-    console.log(URI);
+    await mongoose.connect(URI, {
+      maxPoolSize: 10,
+      serverSelectionTimeoutMS: 10000,
+      autoIndex: true,
+    });
     console.log("mongodb succesfully connected");
   } catch (error) {
-    console.log(URI);
-    console.log("mongodb error");
-    console.log(error);
+    console.error("mongodb error:", error.message);
+    throw error;
   }
 };
 // const { InfluDataService } = require("./models/influencer-model");

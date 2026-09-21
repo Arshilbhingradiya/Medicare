@@ -87,9 +87,12 @@ const getDoctorAvailability = async (req, res) => {
 
 const getVerificationApplication = async (req, res) => {
   try {
-    const doctor = await Doctor.findOne({ userId: req.userID }).select("name email phone license medicalLicense degree qualifications specialization yearsOfExperience city clinicAddress degreeDocument licenseDocument status adminApproved verificationSubmittedAt rejectionReason").lean();
+    const doctor = await Doctor.findOne({ userId: req.userID }).select("name email phone license medicalLicense medicalCouncil qualifications specialization yearsOfExperience city clinicAddress licenseDocument status adminApproved verificationSubmittedAt verificationReviewedAt rejectionReason").lean();
     if (!doctor) return res.status(404).json({ msg: "Doctor profile not found" });
-    return res.status(200).json(doctor);
+    return res.status(200).json({
+      ...doctor,
+      verificationStatus: doctor.verificationSubmittedAt ? doctor.status : "not_submitted",
+    });
   } catch (error) {
     return res.status(500).json({ msg: "Unable to load verification application" });
   }
@@ -97,12 +100,24 @@ const getVerificationApplication = async (req, res) => {
 
 const submitVerificationApplication = async (req, res) => {
   try {
-    const requiredFields = ["name", "email", "degree", "medicalLicense", "degreeDocument", "licenseDocument", "specialization"];
+    const requiredFields = ["name", "email", "medicalCouncil", "medicalLicense", "licenseDocument", "specialization"];
     const missing = requiredFields.filter((field) => !String(req.body?.[field] || "").trim());
     if (missing.length) return res.status(400).json({ msg: `Please complete: ${missing.join(", ")}` });
+    const licenseNumber = String(req.body.medicalLicense).trim();
+    if (!/^[A-Za-z0-9][A-Za-z0-9 /-]{2,39}$/.test(licenseNumber)) {
+      return res.status(400).json({ msg: "Enter a valid State Medical Council registration number (3–40 letters, numbers, spaces, / or - only)." });
+    }
+    const existing = await Doctor.findOne({ userId: req.userID }).select("status verificationSubmittedAt").lean();
+    if (!existing) return res.status(404).json({ msg: "Doctor profile not found" });
+    if (existing.status === "pending" && existing.verificationSubmittedAt) {
+      return res.status(409).json({ msg: "Your verification is already under review." });
+    }
+    if (existing.status === "approved") {
+      return res.status(409).json({ msg: "Your verification is already approved." });
+    }
     const doctor = await Doctor.findOneAndUpdate(
       { userId: req.userID },
-      { $set: { name: req.body.name.trim(), email: req.body.email.trim().toLowerCase(), phone: req.body.phone?.trim(), license: req.body.medicalLicense.trim(), medicalLicense: req.body.medicalLicense.trim(), degree: req.body.degree.trim(), qualifications: req.body.qualifications?.trim(), specialization: req.body.specialization.trim(), yearsOfExperience: req.body.yearsOfExperience?.trim(), city: req.body.city?.trim(), clinicAddress: req.body.clinicAddress?.trim(), degreeDocument: req.body.degreeDocument, licenseDocument: req.body.licenseDocument, status: "pending", adminApproved: false, rejectionReason: "", verificationSubmittedAt: new Date() } },
+      { $set: { name: req.body.name.trim(), email: req.body.email.trim().toLowerCase(), phone: req.body.phone?.trim(), license: licenseNumber, medicalLicense: licenseNumber, medicalCouncil: req.body.medicalCouncil.trim(), qualifications: req.body.qualifications?.trim(), specialization: req.body.specialization.trim(), yearsOfExperience: req.body.yearsOfExperience?.trim(), city: req.body.city?.trim(), clinicAddress: req.body.clinicAddress?.trim(), licenseDocument: req.body.licenseDocument, status: "pending", adminApproved: false, rejectionReason: "", verificationSubmittedAt: new Date(), verificationReviewedAt: undefined } },
       { new: true, runValidators: true }
     );
     if (!doctor) return res.status(404).json({ msg: "Doctor profile not found" });

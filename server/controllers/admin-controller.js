@@ -196,9 +196,24 @@ const updateDoctorApproval = async (req, res) => {
             return res.status(400).json({ msg: "Invalid doctor approval status" });
         }
 
+        const doctorApplication = await Doctor.findById(id).select("name email medicalCouncil medicalLicense specialization licenseDocument verificationSubmittedAt");
+        if (!doctorApplication) return res.status(404).json({ msg: "Doctor not found" });
+
+        if (status === "approved") {
+            const missing = ["name", "email", "medicalCouncil", "medicalLicense", "specialization", "licenseDocument"]
+                .filter((field) => !String(doctorApplication[field] || "").trim());
+            if (missing.length || !doctorApplication.verificationSubmittedAt) {
+                return res.status(400).json({ msg: "Doctor must submit complete verification documents before approval." });
+            }
+        }
+
+        if (status === "rejected" && !String(rejectionReason).trim()) {
+            return res.status(400).json({ msg: "A rejection reason is required." });
+        }
+
         const doctor = await Doctor.findByIdAndUpdate(
             id,
-            { $set: { status, adminApproved: status === "approved", rejectionReason: status === "rejected" ? rejectionReason : "" } },
+            { $set: { status, adminApproved: status === "approved", rejectionReason: status === "rejected" ? rejectionReason : "", verificationReviewedAt: new Date() } },
             { new: true, runValidators: true }
         );
         if (!doctor) return res.status(404).json({ msg: "Doctor not found" });

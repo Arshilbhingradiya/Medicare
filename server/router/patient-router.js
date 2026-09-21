@@ -39,6 +39,12 @@ router.patch(
   patientController.updateAppointmentStatus
 );
 router.patch(
+  "/appointments/:id/complete",
+  authMiddleware,
+  doctorMiddleware,
+  patientController.completeAppointment
+);
+router.patch(
   "/appointments/:id/reschedule",
   authMiddleware,
   patientController.rescheduleAppointment

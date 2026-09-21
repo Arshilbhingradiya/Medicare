@@ -36,6 +36,8 @@ const PatientFilePage = () => {
     prescription: "",
     notes: "",
   });
+  const [consultation, setConsultation] = useState({ notes: "", diagnosis: "", advice: "", followUpDate: "", medicines: [] });
+  const [completing, setCompleting] = useState(false);
   const [message, setMessage] = useState("");
 
   // Load the appointment (case file) from the backend
@@ -65,6 +67,13 @@ const PatientFilePage = () => {
           phone: data.phone || "",
           prescription: data.prescription || "",
           notes: data.notes || "",
+        });
+        setConsultation({
+          notes: data.consultation?.notes || data.notes || "",
+          diagnosis: data.consultation?.diagnosis || "",
+          advice: data.consultation?.advice || "",
+          followUpDate: data.consultation?.followUpDate ? data.consultation.followUpDate.slice(0, 10) : "",
+          medicines: data.consultation?.medicines || [],
         });
       } catch (error) {
         console.error("Error loading appointment:", error);
@@ -107,6 +116,37 @@ const PatientFilePage = () => {
 
   const handleFieldChange = (field) => (event) => {
     setFormData((prev) => ({ ...prev, [field]: event.target.value }));
+  };
+
+  const handleConsultationChange = (field) => (event) => {
+    setConsultation((prev) => ({ ...prev, [field]: event.target.value }));
+  };
+
+  const handleCompleteVisit = async () => {
+    if (!appointment || appointment.status !== "confirmed") return;
+    if (consultation.notes.trim().length < 10) {
+      setMessage("Consultation notes must contain at least 10 characters before completing the visit.");
+      return;
+    }
+    setCompleting(true);
+    try {
+      const response = await fetch(`${API_URL}/api/patientform/appointments/${appointmentId}/complete`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: authorizationtoken },
+        body: JSON.stringify({ consultation: { ...consultation, followUpDate: consultation.followUpDate ? new Date(`${consultation.followUpDate}T00:00:00.000Z`).toISOString() : "" } }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setMessage(data.msg || "Unable to complete appointment.");
+        return;
+      }
+      setAppointment(data);
+      setMessage("Appointment completed and consultation notes shared with the patient.");
+    } catch {
+      setMessage("Unable to connect to the server.");
+    } finally {
+      setCompleting(false);
+    }
   };
 
   const handleSaveVisit = async () => {
@@ -252,6 +292,18 @@ const PatientFilePage = () => {
                       />
                     </Grid>
                     <Grid item xs={12}>
+                      <TextField fullWidth label="Diagnosis (optional)" value={consultation.diagnosis} onChange={handleConsultationChange("diagnosis")} />
+                    </Grid>
+                    <Grid item xs={12}>
+                      <TextField fullWidth label="Consultation notes (required to complete)" value={consultation.notes} onChange={handleConsultationChange("notes")} multiline minRows={3} />
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                      <TextField fullWidth label="Advice" value={consultation.advice} onChange={handleConsultationChange("advice")} multiline minRows={2} />
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                      <TextField fullWidth label="Follow-up date" type="date" value={consultation.followUpDate} onChange={handleConsultationChange("followUpDate")} InputLabelProps={{ shrink: true }} />
+                    </Grid>
+                    <Grid item xs={12}>
                       <TextField
                         fullWidth
                         label="Prescription / medicine"
@@ -279,6 +331,11 @@ const PatientFilePage = () => {
                     <Button variant="contained" color="primary" onClick={handleSaveVisit}>
                       Save to patient file
                     </Button>
+                    {appointment.status === "confirmed" && (
+                      <Button variant="contained" color="success" onClick={handleCompleteVisit} disabled={completing}>
+                        {completing ? "Completing..." : "Complete appointment"}
+                      </Button>
+                    )}
                     <Button variant="outlined" onClick={() => navigate(-1)}>
                       Cancel
                     </Button>

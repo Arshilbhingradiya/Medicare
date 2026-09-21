@@ -47,7 +47,7 @@ const Adminverification = () => {
       setDoctors((current) => current.map((doctor) => doctor._id === id ? data : doctor));
       setMessage(`${data.name || "Doctor"} is now ${data.status}.`);
       setMessageType("success");
-    } catch (error) {
+    } catch {
       setMessage("Unable to connect to the approval service.");
       setMessageType("error");
     } finally {
@@ -101,7 +101,7 @@ const Adminverification = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setRejectingDoctor(null)}>Cancel</Button>
-          <Button color="error" variant="contained" onClick={rejectDoctor}>Reject application</Button>
+          <Button color="error" variant="contained" disabled={!rejectionReason.trim()} onClick={rejectDoctor}>Reject application</Button>
         </DialogActions>
       </Dialog>
     </Container>

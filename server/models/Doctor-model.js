@@ -13,6 +13,7 @@ const DoctorSchema = new mongoose.Schema(
     },
     adminApproved: { type: Boolean, default: false },
     verificationSubmittedAt: { type: Date },
+    verificationReviewedAt: { type: Date },
     rejectionReason: { type: String },
     name: { type: String, required: true },
     email: {
@@ -28,7 +29,7 @@ const DoctorSchema = new mongoose.Schema(
     qualifications: { type: String },
     degree: { type: String },
     medicalLicense: { type: String },
-    degreeDocument: { type: String },
+    medicalCouncil: { type: String },
     licenseDocument: { type: String },
     availability: { type: String },
     bio: { type: String },

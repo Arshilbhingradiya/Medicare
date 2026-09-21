@@ -38,6 +38,7 @@ import {
   ContactsRounded,
 LogoutRounded,
   WorkspacePremiumRounded,
+  VerifiedRounded,
 } from "@mui/icons-material";
 import { useEffect, useState } from "react";
 import { API_URL } from "../config";
@@ -609,6 +610,15 @@ const handleAppointmentCTA = () => {
                                 <WorkspacePremiumRounded color="primary" />
                               </ListItemIcon>
                               <ListItemText primary="Subscription Plan" />
+                            </ListItemButton>
+                            <ListItemButton
+                              onClick={() => handleNavigate("/verifydoctor")}
+                              sx={drawerItemStyles}
+                            >
+                              <ListItemIcon sx={{ minWidth: 40 }}>
+                                <VerifiedRounded color="primary" />
+                              </ListItemIcon>
+                              <ListItemText primary="Verification" />
                             </ListItemButton>
                           </>
                         )}

@@ -11,14 +11,35 @@ Never claim to have access to private medical records unless they are explicitly
 
 const requestModel = async (messages, maxTokens = 500) => {
   if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY.startsWith("replace_with_")) return null;
-  const response = await fetch(process.env.OPENAI_API_URL || "https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
-    body: JSON.stringify({ model: process.env.OPENAI_MODEL || "gpt-4o-mini", temperature: 0.2, max_tokens: maxTokens, messages }),
-  });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.error?.message || "AI provider error");
-  return data.choices?.[0]?.message?.content?.trim() || null;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20000);
+  try {
+    const response = await fetch(process.env.OPENAI_API_URL || "https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+      body: JSON.stringify({ model: process.env.OPENAI_MODEL || "gpt-4o-mini", temperature: 0.2, max_tokens: maxTokens, messages }),
+      signal: controller.signal,
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error?.message || `AI provider returned ${response.status}`);
+    return data.choices?.[0]?.message?.content?.trim() || null;
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
+const fallbackAnswer = (question) => {
+  const value = String(question || "").toLowerCase();
+  if (/book|appointment|schedule/.test(value)) {
+    return "I can still help you book safely. Select “Book an appointment” above, choose your doctor and date, then select one of the available time slots. Only future slots shown by the doctor’s schedule can be booked.";
+  }
+  if (/doctor|specialist|clinic/.test(value)) {
+    return "You can find approved doctors from Doctor Search. Filter by city or specialty, then open a profile to book an available slot.";
+  }
+  if (/appointment|upcoming|cancel|reschedule/.test(value)) {
+    return "You can review, reschedule, or cancel your appointments from the Patient Dashboard.";
+  }
+  return "The AI reply service is temporarily unavailable, but you can still use Doctor Search, booking, and your Patient Dashboard. Please try your question again shortly.";
 };
 
 const getUserContext = async (req) => {
@@ -49,25 +70,23 @@ const chat = async (req, res) => {
       return res.status(400).json({ message: "Please enter a question." });
     }
 
-    if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY.startsWith("replace_with_")) {
-      return res.status(503).json({
-        message: "AI assistant is not configured yet. Please add OPENAI_API_KEY on the server.",
-      });
-    }
-
     const context = await getUserContext(req);
     const contextMessage = context.length
       ? `The authenticated user's upcoming appointment context is: ${JSON.stringify(context)}`
       : "The authenticated user has no upcoming appointments in the system.";
-    const answer = await requestModel([{ role: "system", content: `${SYSTEM_PROMPT}\n${contextMessage}` }, ...cleanedMessages]);
-    if (!answer) {
-      return res.status(502).json({ message: "The assistant returned an empty answer. Please try again." });
+    if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY.startsWith("replace_with_")) {
+      return res.status(200).json({ answer: fallbackAnswer(cleanedMessages.at(-1).content), fallback: true, configured: false });
     }
-
-    return res.status(200).json({ answer });
+    try {
+      const answer = await requestModel([{ role: "system", content: `${SYSTEM_PROMPT}\n${contextMessage}` }, ...cleanedMessages]);
+      if (answer) return res.status(200).json({ answer, fallback: false, configured: true });
+    } catch (providerError) {
+      console.error("Assistant provider request failed:", providerError.name, providerError.message);
+    }
+    return res.status(200).json({ answer: fallbackAnswer(cleanedMessages.at(-1).content), fallback: true, configured: true });
   } catch (error) {
     console.error("Assistant error:", error);
-    return res.status(502).json({ message: "Unable to connect to the assistant right now." });
+    return res.status(200).json({ answer: fallbackAnswer(req.body?.messages?.at?.(-1)?.content), fallback: true });
   }
 };
 

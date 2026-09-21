@@ -4,10 +4,39 @@ const Doctor = require("../models/Doctor-model");
 const { createNotification } = require("./notification-controller");
 const { isDoctorBookable } = require("../utils/doctor-eligibility");
 const { reserveSlot, releaseSlot } = require("../utils/slot-lock");
+const { z } = require("zod");
+
+const consultationSchema = z.object({
+  notes: z.string().trim().min(10, "Consultation notes must be at least 10 characters").max(5000),
+  diagnosis: z.string().trim().max(1000).optional().default(""),
+  medicines: z.array(z.object({
+    name: z.string().trim().min(1).max(200),
+    dosage: z.string().trim().max(200).optional().default(""),
+    frequency: z.string().trim().max(200).optional().default(""),
+    duration: z.string().trim().max(200).optional().default(""),
+    instructions: z.string().trim().max(500).optional().default(""),
+  })).max(30).optional().default([]),
+  advice: z.string().trim().max(3000).optional().default(""),
+  followUpDate: z.string().datetime().optional().or(z.literal("")),
+});
 
 const parseDate = (value) => {
   const date = new Date(`${value}T00:00:00.000Z`);
   return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const parseStartsAt = (dateValue, timeValue) => {
+  if (!dateValue || !timeValue) return null;
+  const startPart = String(timeValue).split('-')[0].trim();
+  const [hours, minutes] = startPart.split(':').map(Number);
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes)) return null;
+
+  const dateObj = new Date(dateValue);
+  if (Number.isNaN(dateObj.getTime())) return null;
+
+  const utcDate = new Date(dateObj.getTime());
+  utcDate.setUTCHours(hours, minutes, 0, 0);
+  return new Date(utcDate.getTime() + (5 * 60 + 30) * 60 * 1000);
 };
 
 const getDayRange = (value) => {
@@ -95,11 +124,10 @@ const bookAppointment = async (req, res) => {
       branchId,
       paymentMethod = "cash",
     } = req.body;
+    const idempotencyKey = req.headers['idempotency-key'] || req.headers['Idempotency-Key'];
 
     if (!userId || !doctorId || !date || !time || !["cash", "online"].includes(paymentMethod)) {
-      return res
-        .status(400)
-        .json({ msg: "Doctor, date and time are required" });
+      return res.status(400).json({ msg: "Doctor, date and time are required" });
     }
 
     if (req.user?.role !== "Patient") {
@@ -122,25 +150,34 @@ const bookAppointment = async (req, res) => {
     if (!dayRange || dayRange.start < today) {
       return res.status(400).json({ msg: "Appointment date must be valid and not in the past" });
     }
-    const requestedMinutes = String(time).split("-")[0];
-    const selectedStart = new Date(`${date}T${requestedMinutes}`);
-    if (dayRange.start.getTime() === today.getTime() && selectedStart <= new Date()) {
-      return res.status(400).json({ msg: "This time has already passed today. Please choose a later slot." });
+
+    const startsAt = parseStartsAt(date, time);
+    if (!startsAt || startsAt <= new Date()) {
+      return res.status(400).json({ msg: "Appointment time must be in the future" });
     }
+
     if (!isTimeInSchedule(branch.availabilitySchedule, time)) {
       return res.status(409).json({ msg: "Selected time is outside the doctor's availability" });
+    }
+
+    if (idempotencyKey) {
+      const existing = await Appointment.findOne({
+        patient: patientUserRef,
+        doctor: doctor._id,
+        time,
+        date: dayRange.start,
+        reason: reason || 'Appointment booking',
+        paymentMethod,
+        $or: [{ _id: idempotencyKey }, { 'idempotencyKey': idempotencyKey }]
+      }).lean();
+      if (existing) {
+        return res.status(200).json({ msg: 'Duplicate booking request', appointment: existing });
+      }
     }
 
     const usesBranch = Array.isArray(doctor.branches) && doctor.branches.length;
     const branchKey = usesBranch ? branch._id : null;
     const capacity = Number(branch.slotCapacity || doctor.slotCapacity || 0);
-
-    // Atomically claim a seat in this slot. This replaces a previous
-    // "countDocuments() then create()" check, which was a race condition:
-    // two patients booking the last open seat at the same instant could
-    // both pass the count check before either appointment was written,
-    // resulting in overbooking. reserveSlot() uses a DB-level unique index
-    // so only one concurrent request can win the last seat.
     const slotClaimed = await reserveSlot({
       doctor: doctor._id,
       branchId: branchKey,
@@ -153,21 +190,25 @@ const bookAppointment = async (req, res) => {
     }
 
     try {
+      const endsAt = new Date(startsAt.getTime() + 30 * 60 * 1000);
+      // The partial unique index protects identical starts; this range query
+      // also prevents a patient from holding intersecting 30-minute visits.
       const patientConflict = await Appointment.exists({
         patientUser: patientUserRef,
-        date: { $gte: dayRange.start, $lt: dayRange.end },
-        time,
-        status: { $ne: "cancelled" },
+        status: { $in: ['pending', 'confirmed'] },
+        startsAt: { $lt: endsAt },
+        endsAt: { $gt: startsAt },
       });
+
       if (patientConflict) {
         await releaseSlot({ doctor: doctor._id, branchId: branchKey, dateKey: date, time });
         return res.status(409).json({ msg: "You already have an appointment at this date and time" });
       }
 
-      var patientProfile = await Patient.findOne({ userId }).lean();
-      var patientName = patientProfile?.name || req.user.username || "Patient";
+      const patientProfile = await Patient.findOne({ userId }).lean();
+      const patientName = patientProfile?.name || req.user.username || "Patient";
 
-      var appointment = await Appointment.create({
+      const appointment = await Appointment.create({
         patient: patientUserRef,
         patientUser: patientUserRef,
         doctor: doctor._id,
@@ -178,45 +219,43 @@ const bookAppointment = async (req, res) => {
         patientName,
         date: dayRange.start,
         time,
+        startsAt,
+        endsAt,
         status: "pending",
         reason: reason || "Appointment booking",
         paymentMethod,
         paymentStatus: paymentMethod === "online" ? "pending" : "unpaid",
+        ...(idempotencyKey ? { idempotencyKey } : {}),
       });
+
+      await createNotification({
+        userId: patientUserRef,
+        role: "Patient",
+        type: "booking",
+        title: "Appointment Booked",
+        message: `Your appointment with ${doctor.name || "the doctor"} on ${new Date(date).toLocaleDateString()} at ${time} has been booked successfully.`,
+        meta: { appointmentId: appointment._id, doctorName: doctor.name, date, time },
+      });
+
+      if (doctor && doctor.userId) {
+        await createNotification({
+          userId: doctor.userId,
+          role: "Doctor",
+          type: "booking",
+          title: "New Appointment Request",
+          message: `${patientName || "A patient"} requested an appointment on ${new Date(date).toLocaleDateString()} at ${time}.`,
+          meta: { appointmentId: appointment._id, patientName, date, time },
+        });
+      }
+
+      return res.status(201).json({ msg: "Appointment booked successfully", appointment });
     } catch (bookingError) {
-      // Give the seat back if anything after the reservation failed,
-      // otherwise the slot would stay artificially full forever.
       await releaseSlot({ doctor: doctor._id, branchId: branchKey, dateKey: date, time });
+      if (bookingError && bookingError.code === 11000) {
+        return res.status(409).json({ message: 'This slot was just booked. Please choose another time.' });
+      }
       throw bookingError;
     }
-
-    // Notify the patient that their booking was received
-    await createNotification({
-      userId: patientUserRef,
-      role: "Patient",
-      type: "booking",
-      title: "Appointment Booked",
-      message: `Your appointment with ${doctor.name || "the doctor"} on ${new Date(
-        date
-      ).toLocaleDateString()} at ${time} has been booked successfully.`,
-      meta: { appointmentId: appointment._id, doctorName: doctor.name, date, time },
-    });
-
-    // Notify the doctor about a new appointment
-    if (doctor && doctor.userId) {
-      await createNotification({
-        userId: doctor.userId,
-        role: "Doctor",
-        type: "booking",
-        title: "New Appointment Request",
-        message: `${patientName || "A patient"} requested an appointment on ${new Date(
-          date
-        ).toLocaleDateString()} at ${time}.`,
-        meta: { appointmentId: appointment._id, patientName, date, time },
-      });
-    }
-
-    return res.status(201).json({ msg: "Appointment booked successfully", appointment });
   } catch (error) {
     console.log(error);
     return res.status(500).json({ msg: "Internal server error", error });
@@ -286,29 +325,46 @@ const updateAppointmentStatus = async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
 
-    if (["admin", "patient"].includes((req.user?.role || "").toLowerCase())) {
-      return res.status(403).json({ msg: "Only the assigned doctor can manage appointment status" });
-    }
-
     if (!["pending", "confirmed", "cancelled", "completed"].includes(status)) {
       return res.status(400).json({ msg: "Invalid status" });
     }
-
-    const doctor = await Doctor.findOne({ userId: req.userID });
-    const isDoctorOwner = doctor && await Appointment.exists({ _id: id, doctor: doctor._id });
-    const isPatientOwner = await Appointment.exists({ _id: id, patientUser: req.userID });
-
-    if (!isDoctorOwner && (!isPatientOwner || status !== "cancelled")) {
-      return res.status(403).json({ msg: "You are not authorized to update this appointment" });
+    if (status === "completed") {
+      return res.status(400).json({ msg: "Complete appointments using the consultation endpoint so notes are recorded." });
     }
 
-    const previous = await Appointment.findById(id).select("status branchId date time doctor");
-    const appointment = await Appointment.findByIdAndUpdate(id, { status }, { new: true });
+    const appointment = await Appointment.findById(id);
     if (!appointment) {
       return res.status(404).json({ msg: "Appointment not found" });
     }
 
-    if (status === "cancelled" && previous && previous.status !== "cancelled") {
+    const validTransitions = {
+      pending: ["confirmed", "cancelled"],
+      confirmed: ["completed", "cancelled"],
+    };
+
+    if (!validTransitions[appointment.status]?.includes(status)) {
+      return res.status(409).json({ msg: "Appointment status transition is not allowed" });
+    }
+
+    const doctor = await Doctor.findOne({ userId: req.userID });
+    const isDoctorOwner = doctor && appointment.doctor.toString() === doctor._id.toString();
+    const isPatientOwner = appointment.patientUser && appointment.patientUser.toString() === req.userID.toString();
+
+    if (!isDoctorOwner && !(isPatientOwner && status === "cancelled")) {
+      return res.status(403).json({ msg: "You are not authorized to update this appointment" });
+    }
+
+    const updated = await Appointment.findOneAndUpdate(
+      { _id: id, status: appointment.status },
+      { status },
+      { new: true }
+    );
+
+    if (!updated) {
+      return res.status(409).json({ msg: "This appointment was updated by another request. Please refresh." });
+    }
+
+    if (status === "cancelled" && appointment.status !== "cancelled") {
       await releaseSlot({
         doctor: appointment.doctor,
         branchId: appointment.branchId || null,
@@ -320,45 +376,62 @@ const updateAppointmentStatus = async (req, res) => {
     const patientProfile = appointment.patientUser
       ? await Patient.findOne({ userId: appointment.patientUser }).select("name").lean()
       : null;
-    if (patientProfile?.name) appointment.patientName = patientProfile.name;
+    if (patientProfile?.name) updated.patientName = patientProfile.name;
 
-    // Notify patient when confirmed/cancelled
-    if (appointment.patientUser) {
+    if (updated.patientUser) {
       await createNotification({
-        userId: appointment.patientUser,
+        userId: updated.patientUser,
         role: "Patient",
-        type:
-          status === "confirmed"
-            ? "booking_confirmed"
-            : status === "cancelled"
-            ? "booking_cancelled"
-            : "booking",
-        title:
-          status === "confirmed"
-            ? "Appointment Confirmed"
-            : status === "cancelled"
-            ? "Appointment Cancelled"
-            : "Appointment Updated",
-        message:
-          status === "confirmed"
-            ? `Your appointment with ${appointment.doctorName || "the doctor"} on ${new Date(
-                appointment.date
-              ).toLocaleDateString()} at ${
-                appointment.time
-              } has been confirmed.`
-            : status === "cancelled"
-            ? `Your appointment with ${appointment.doctorName || "the doctor"} on ${new Date(
-                appointment.date
-              ).toLocaleDateString()} has been cancelled.`
+        type: status === "confirmed" ? "booking_confirmed" : status === "cancelled" ? "booking_cancelled" : "booking",
+        title: status === "confirmed" ? "Appointment Confirmed" : status === "cancelled" ? "Appointment Cancelled" : "Appointment Updated",
+        message: status === "confirmed"
+          ? `Your appointment with ${updated.doctorName || "the doctor"} on ${new Date(updated.date).toLocaleDateString()} at ${updated.time} has been confirmed.`
+          : status === "cancelled"
+            ? `Your appointment with ${updated.doctorName || "the doctor"} on ${new Date(updated.date).toLocaleDateString()} has been cancelled.`
             : `Your appointment status has been updated to ${status}.`,
-        meta: { appointmentId: appointment._id },
+        meta: { appointmentId: updated._id },
       });
     }
 
-    return res.status(200).json(appointment);
+    return res.status(200).json(updated);
   } catch (error) {
     console.log(error);
     return res.status(500).json({ msg: "Internal server error" });
+  }
+};
+
+const completeAppointment = async (req, res) => {
+  try {
+    const parsed = consultationSchema.safeParse(req.body?.consultation);
+    if (!parsed.success) return res.status(400).json({ msg: "Invalid consultation details", errors: parsed.error.flatten() });
+
+    const doctor = await Doctor.findOne({ userId: req.userID }).select("_id name").lean();
+    if (!doctor) return res.status(403).json({ msg: "Only doctors can complete appointments" });
+
+    const consultation = {
+      ...parsed.data,
+      followUpDate: parsed.data.followUpDate ? new Date(parsed.data.followUpDate) : undefined,
+      completedAt: new Date(),
+    };
+    const appointment = await Appointment.findOneAndUpdate(
+      { _id: req.params.id, doctor: doctor._id, status: "confirmed" },
+      { $set: { status: "completed", consultation, notes: consultation.notes } },
+      { new: true, runValidators: true }
+    );
+    if (!appointment) return res.status(409).json({ msg: "Appointment is not confirmed, does not exist, or was updated by another request." });
+
+    await createNotification({
+      userId: appointment.patientUser,
+      role: "Patient",
+      type: "appointment_summary",
+      title: "Appointment completed",
+      message: `Your appointment with Dr. ${doctor.name || appointment.doctorName || "your doctor"} is complete. Your consultation notes are available.`,
+      meta: { appointmentId: appointment._id },
+    });
+    return res.status(200).json(appointment);
+  } catch (error) {
+    console.error("Appointment completion error:", error);
+    return res.status(500).json({ msg: "Unable to complete appointment" });
   }
 };
 
@@ -582,6 +655,7 @@ module.exports = {
   getMyAppointments,
   getDoctorAppointments,
   updateAppointmentStatus,
+  completeAppointment,
   getAppointmentById,
   updateAppointmentDetails,
   getPatientHistory,

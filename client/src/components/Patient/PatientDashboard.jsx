@@ -15,7 +15,12 @@ import {
   Chip,
   Stack,
   Box,
+  Tabs,
+  Tab,
+  Avatar,
+  Grid,
 } from "@mui/material";
+import { CalendarMonth, CheckCircleOutline, EventBusyOutlined, UpcomingOutlined } from "@mui/icons-material";
 import { format } from "date-fns";
 import { API_URL } from "../../config";
 
@@ -65,6 +70,8 @@ const PatientDashboard = () => {
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [newDate, setNewDate] = useState("");
   const [newTime, setNewTime] = useState("");
+  const [appointmentTab, setAppointmentTab] = useState("upcoming");
+  const [notesAppointment, setNotesAppointment] = useState(null);
 
   // useEffect(() => {
   //   const loadAppointments = () => {
@@ -196,6 +203,7 @@ const PatientDashboard = () => {
   };
 
   const handleCancel = async (id) => {
+    if (!window.confirm("Cancel this appointment? The slot will become available to other patients.")) return;
     try {
       const token = localStorage.getItem("token");
       const response = await fetch(
@@ -222,24 +230,40 @@ const PatientDashboard = () => {
     }
   };
 
+  const visibleAppointments = appointments.filter((appointment) => {
+    if (appointmentTab === "completed") return appointment.status === "completed";
+    if (appointmentTab === "cancelled") return appointment.status === "cancelled";
+    return appointment.status !== "completed" && appointment.status !== "cancelled" && isAppointmentUpcoming(appointment);
+  });
+  const upcomingCount = appointments.filter((item) => item.status !== "cancelled" && item.status !== "completed" && isAppointmentUpcoming(item)).length;
+  const completedCount = appointments.filter((item) => item.status === "completed").length;
+  const cancelledCount = appointments.filter((item) => item.status === "cancelled").length;
+
   return (
     <Container maxWidth="xl" sx={{ py: 4, px: { xs: 2, md: 4, lg: 6 } }}>
-      <Paper elevation={4} sx={{ p: { xs: 3, md: 5, lg: 6 }, borderRadius: 4, background: "linear-gradient(135deg, #f8fbff 0%, #eef4ff 100%)" }}>
-        <Typography variant="h4" fontWeight={700} color="primary.main" gutterBottom>
-          Your Appointments
-        </Typography>
-        <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
-          Review your upcoming visits, reschedule if needed, and keep track of recent completed appointments.
-        </Typography>
+      <Paper elevation={0} sx={{ overflow: "hidden", borderRadius: 4, border: "1px solid #dbeafe", background: "#f8fbff" }}>
+        <Box sx={{ p: { xs: 2.5, md: 4 }, color: "white", background: "linear-gradient(125deg, #0f4c81, #1976d2 65%, #38bdf8)" }}>
+          <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" spacing={2} alignItems={{ sm: "center" }}><Box><Typography variant="overline" sx={{ opacity: .8, letterSpacing: 1.3 }}>PATIENT PORTAL</Typography><Typography variant="h4" fontWeight={800}>Your appointments</Typography><Typography sx={{ opacity: .9, mt: .5 }}>Manage upcoming consultations and access completed visit notes.</Typography></Box><Avatar sx={{ width: 58, height: 58, bgcolor: "rgba(255,255,255,.18)" }}><CalendarMonth fontSize="large" /></Avatar></Stack>
+        </Box>
+        <Box sx={{ p: { xs: 2, md: 3.5 } }}>
+        <Grid container spacing={1.5} sx={{ mb: 3 }}>
+          {[["Upcoming", upcomingCount, UpcomingOutlined, "#1976d2"], ["Completed", completedCount, CheckCircleOutline, "#15803d"], ["Cancelled", cancelledCount, EventBusyOutlined, "#dc2626"]].map(([label, count, Icon, color]) => <Grid item xs={4} key={label}><Paper elevation={0} sx={{ p: { xs: 1.25, md: 1.75 }, border: "1px solid #e2e8f0", borderRadius: 3 }}><Stack direction={{ xs: "column", md: "row" }} spacing={1} alignItems="center"><Box sx={{ color, display: "grid" }}><Icon /></Box><Box><Typography fontWeight={800}>{count}</Typography><Typography variant="caption" color="text.secondary">{label}</Typography></Box></Stack></Paper></Grid>)}
+        </Grid>
 
-        <Stack direction="row" spacing={1} sx={{ mb: 3, flexWrap: "wrap" }}>
+        <Stack direction="row" spacing={1} sx={{ mb: 2, flexWrap: "wrap" }}>
           <Chip label="Upcoming first" color="primary" variant="outlined" />
           <Chip label="Past visits below" color="secondary" variant="outlined" />
           <Chip label="Reschedule both date & time" color="success" variant="outlined" />
         </Stack>
 
+        <Tabs value={appointmentTab} onChange={(_, value) => setAppointmentTab(value)} sx={{ mb: 2 }}>
+          <Tab value="upcoming" label="Upcoming" />
+          <Tab value="completed" label="Completed" />
+          <Tab value="cancelled" label="Cancelled" />
+        </Tabs>
+
         <List sx={{ display: "grid", gap: 1.5 }}>
-          {appointments.map((app) => {
+          {visibleAppointments.map((app) => {
             const upcoming = isAppointmentUpcoming(app);
             return (
               <ListItem
@@ -249,7 +273,8 @@ const PatientDashboard = () => {
                   mb: 0,
                   borderRadius: 2,
                   bgcolor: upcoming ? "#ffffff" : "#f7f9fc",
-                  border: `1px solid ${upcoming ? "#dbeafe" : "#e5e7eb"}`,
+                  border: `1px solid ${upcoming ? "#bfdbfe" : "#e5e7eb"}`,
+                  boxShadow: upcoming ? "0 5px 16px rgba(15,76,129,.06)" : "none",
                   alignItems: "flex-start",
                   flexDirection: { xs: "column", sm: "row" },
                   gap: 1.5,
@@ -284,14 +309,18 @@ const PatientDashboard = () => {
                     </Button>
                   </Stack>
                 ) : (
-                  <Typography variant="body2" color="text.secondary">
-                    Past appointment
-                  </Typography>
+                  <Button variant="outlined" onClick={() => setNotesAppointment(app)} disabled={app.status !== "completed"}>
+                    View notes & prescription
+                  </Button>
                 )}
               </ListItem>
             );
           })}
+          {visibleAppointments.length === 0 && (
+            <Typography color="text.secondary">No {appointmentTab} appointments.</Typography>
+          )}
         </List>
+        </Box>
       </Paper>
 
       {/* Reschedule Dialog */}
@@ -320,6 +349,26 @@ const PatientDashboard = () => {
           <Button onClick={handleSaveReschedule} color="primary">
             Save Changes
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={Boolean(notesAppointment)} onClose={() => setNotesAppointment(null)} fullWidth maxWidth="sm">
+        <DialogTitle>Consultation notes</DialogTitle>
+        <DialogContent dividers>
+          <Typography variant="subtitle2">Diagnosis</Typography>
+          <Typography paragraph>{notesAppointment?.consultation?.diagnosis || "Not recorded"}</Typography>
+          <Typography variant="subtitle2">Notes</Typography>
+          <Typography paragraph>{notesAppointment?.consultation?.notes || notesAppointment?.notes || "Not recorded"}</Typography>
+          <Typography variant="subtitle2">Medicines</Typography>
+          {(notesAppointment?.consultation?.medicines || []).length ? notesAppointment.consultation.medicines.map((medicine, index) => (
+            <Typography key={`${medicine.name}-${index}`} paragraph>{medicine.name} — {[medicine.dosage, medicine.frequency, medicine.duration].filter(Boolean).join(", ")}</Typography>
+          )) : <Typography paragraph>No medicines prescribed.</Typography>}
+          <Typography variant="subtitle2">Advice</Typography>
+          <Typography>{notesAppointment?.consultation?.advice || "Not recorded"}</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => window.print()}>Print</Button>
+          <Button onClick={() => setNotesAppointment(null)}>Close</Button>
         </DialogActions>
       </Dialog>
     </Container>
